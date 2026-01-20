@@ -2,153 +2,235 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>永遠のロード - The Most Boring Game</title>
+    <title>MINIMALIST FPS PROTOTYPE</title>
     <style>
-        body {
-            background-color: #f5f5dc; /* 事務的なベージュ */
-            font-family: "MS PGothic", "Arial", sans-serif; /* あえて古風なフォント */
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        #crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 20px; height: 20px;
+            background-color: transparent;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none; /* マウスイベントを透過 */
+        }
+        #crosshair::after {
+            content: ''; position: absolute;
+            top: 50%; left: 50%;
+            width: 4px; height: 4px;
+            background-color: white;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        }
+        #info {
+            position: absolute;
+            top: 10px; left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            pointer-events: none;
+        }
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            color: white;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
-            color: #555;
-            user-select: none;
-        }
-
-        .container {
-            width: 300px;
-            text-align: center;
-            border: 1px solid #ccc;
-            padding: 40px;
-            background-color: #fff;
-            box-shadow: 2px 2px 0px #bbb;
-        }
-
-        h1 {
-            font-size: 16px;
-            font-weight: normal;
-            margin-bottom: 20px;
-        }
-
-        .progress-container {
-            width: 100%;
-            height: 20px;
-            background-color: #e0e0e0;
-            border: 1px inset #ccc;
-            margin-bottom: 10px;
-            position: relative;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background-color: #000080; /* Windows 95風の青 */
-            width: 0%;
-            transition: width 0.5s ease;
-        }
-
-        #status-text {
-            font-size: 12px;
-            margin-bottom: 30px;
-            min-height: 1.2em;
-        }
-
-        button {
-            background-color: #e0e0e0;
-            border: 1px outset #fff;
-            padding: 5px 15px;
-            font-size: 12px;
-            cursor: default; /* クリックできそうな指カーソルすら出さない */
-            color: #333;
-        }
-        
-        button:active {
-            border: 1px inset #fff;
-        }
-
-        .footer {
-            margin-top: 50px;
-            font-size: 10px;
-            color: #aaa;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-
-    <div class="container">
-        <h1>システム待機中...</h1>
-        
-        <div class="progress-container">
-            <div class="progress-bar" id="bar"></div>
-        </div>
-        
-        <div id="status-text">リソースを初期化しています...</div>
-
-        <button onclick="doNothing()">処理を高速化</button>
+    <div id="crosshair"></div>
+    <div id="info">Score: <span id="score">0</span></div>
+    <div id="start-screen">
+        <h1>MINIMALIST FPS</h1>
+        <p>画面をクリックしてスタート</p>
+        <p>マウス移動: 視点操作 | クリック: 射撃</p>
+        <p>(ESCキーでカーソルを開放)</p>
     </div>
 
-    <div class="footer">
-        プレイ時間: <span id="timer">0</span>秒 <br>
-        達成度: 0%
-    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 
     <script>
-        const bar = document.getElementById('bar');
-        const statusText = document.getElementById('status-text');
-        const timerSpan = document.getElementById('timer');
-        
-        let progress = 0;
-        let timePlayed = 0;
+        let camera, scene, renderer, controls;
+        let bullets = [];
+        let enemies = [];
+        let score = 0;
+        let lastEnemySpawn = 0;
+        const bulletSpeed = 5;
+        const enemySpeed = 0.05;
+        const scoreElement = document.getElementById('score');
+        const startScreen = document.getElementById('start-screen');
 
-        // 期待させておいて落とすメッセージリスト
-        const messages = [
-            "リソースを配分しています...",
-            "不要なキャッシュを確認中...",
-            "待機モードを最適化しています...",
-            "まだ読み込んでいます...",
-            "応答を待っています...",
-            "データを整理しています...",
-            "何も変更はありません...",
-            "少々お待ちください...",
-            "ほぼ完了していません...",
-            "画面を見つめてください..."
-        ];
+        init();
+        animate();
 
-        // メインループ
-        setInterval(() => {
-            // ランダムに少しだけ進む、たまに戻る
-            const change = Math.random() > 0.8 ? -5 : Math.random() * 2;
-            progress += change;
+        function init() {
+            // シーンの作成
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111111); //暗い背景
+            scene.fog = new THREE.Fog(0x111111, 0, 500); // 霧で奥行き感を出す
 
-            // 99%を超えないように制御（絶対に終わらせない）
-            if (progress > 99) {
-                progress = 85; // 強制的に巻き戻し
-                statusText.innerText = "接続がリセットされました。再試行中...";
-            } else if (progress < 0) {
-                progress = 0;
+            // カメラの作成
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.y = 1.6; // 人間の目の高さ
+
+            // ライティング
+            const light = new THREE.HemisphereLight(0xffffff, 0x444444);
+            light.position.set(0, 20, 0);
+            scene.add(light);
+            const dirLight = new THREE.DirectionalLight(0xffffff);
+            dirLight.position.set(0, 10, 10);
+            scene.add(dirLight);
+
+            // 地面 (グリッド)
+            const gridHelper = new THREE.GridHelper(1000, 100, 0x555555, 0x333333);
+            scene.add(gridHelper);
+
+            // レンダラーの作成
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // コントロール (FPS視点)
+            controls = new THREE.PointerLockControls(camera, document.body);
+
+            // スタート画面クリックでゲーム開始（ポインターロック）
+            startScreen.addEventListener('click', () => {
+                controls.lock();
+            });
+
+            controls.addEventListener('lock', () => {
+                startScreen.style.display = 'none';
+            });
+
+            controls.addEventListener('unlock', () => {
+                startScreen.style.display = 'flex';
+                startScreen.innerHTML = `<h1>PAUSED</h1><p>クリックして再開</p>`;
+            });
+
+            // 射撃イベント
+            document.addEventListener('click', () => {
+                if (controls.isLocked) {
+                    shoot();
+                }
+            });
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function shoot() {
+            // 弾丸の作成（小さな黄色い発光球体）
+            const bullet Geometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+
+            // 弾丸の発射位置をカメラの位置に設定
+            bullet.position.copy(camera.position);
+            
+            // カメラが向いている方向を取得
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            
+            // 弾丸に速度ベクトルを持たせる
+            bullet.velocity = direction.multiplyScalar(bulletSpeed);
+            
+            scene.add(bullet);
+            bullets.push(bullet);
+        }
+
+        function spawnEnemy() {
+            // 敵の作成（赤い立方体）
+            const enemyGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const enemyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+            const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+
+            // ランダムな位置に出現（プレイヤーから一定距離離れた場所）
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 50 + Math.random() * 50;
+            enemy.position.x = Math.cos(angle) * radius;
+            enemy.position.z = Math.sin(angle) * radius;
+            enemy.position.y = 1; // 地面の上
+
+            scene.add(enemy);
+            enemies.push(enemy);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!controls.isLocked) return; // ポーズ中は更新しない
+
+            const time = performance.now();
+
+            // 一定間隔で敵をスポーン
+            if (time - lastEnemySpawn > 2000) { // 2秒ごとにスポーン
+                spawnEnemy();
+                lastEnemySpawn = time;
             }
 
-            // まれにメッセージ更新
-            if (Math.random() > 0.95) {
-                statusText.innerText = messages[Math.floor(Math.random() * messages.length)];
+            // 弾丸の更新
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                bullet.position.add(bullet.velocity);
+
+                // 遠すぎたら削除
+                if (bullet.position.distanceTo(camera.position) > 200) {
+                    scene.remove(bullet);
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // 衝突判定（弾丸 vs 敵）
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const enemy = enemies[j];
+                    // 簡易的な球体衝突判定
+                    if (bullet.position.distanceTo(enemy.position) < 1.5) {
+                        // 命中！
+                        scene.remove(bullet);
+                        bullets.splice(i, 1);
+                        
+                        scene.remove(enemy);
+                        enemies.splice(j, 1);
+                        
+                        score += 100;
+                        scoreElement.innerText = score;
+                        break; // この弾丸はもう他の敵には当たらない
+                    }
+                }
             }
 
-            bar.style.width = progress + "%";
+            // 敵の更新
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                // プレイヤーに向かって移動
+                const direction = new THREE.Vector3();
+                direction.subVectors(camera.position, enemy.position).normalize();
+                enemy.position.add(direction.multiplyScalar(enemySpeed));
+                
+                // 敵が回転しながら迫ってくる演出
+                enemy.rotation.x += 0.01;
+                enemy.rotation.y += 0.02;
 
-        }, 500);
+                // プレイヤーに到達したら（ゲームオーバー処理は今回は省略し、すり抜けるだけにする）
+                if(enemy.position.distanceTo(camera.position) < 2) {
+                     // 接近された！緊張感！
+                }
+            }
 
-        // プレイ時間タイマー
-        setInterval(() => {
-            timePlayed++;
-            timerSpan.innerText = timePlayed;
-        }, 1000);
-
-        // 何もしないボタンの関数
-        function doNothing() {
-            console.log("クリックされましたが、このボタンは機能装飾です。");
-            // ユーザーへのフィードバックは一切返さない
+            renderer.render(scene, camera);
         }
     </script>
 </body>
