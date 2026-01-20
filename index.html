@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>永遠のロード - The Most Boring Game</title>
+    <style>
+        body {
+            background-color: #f5f5dc; /* 事務的なベージュ */
+            font-family: "MS PGothic", "Arial", sans-serif; /* あえて古風なフォント */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #555;
+            user-select: none;
+        }
+
+        .container {
+            width: 300px;
+            text-align: center;
+            border: 1px solid #ccc;
+            padding: 40px;
+            background-color: #fff;
+            box-shadow: 2px 2px 0px #bbb;
+        }
+
+        h1 {
+            font-size: 16px;
+            font-weight: normal;
+            margin-bottom: 20px;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border: 1px inset #ccc;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: #000080; /* Windows 95風の青 */
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        #status-text {
+            font-size: 12px;
+            margin-bottom: 30px;
+            min-height: 1.2em;
+        }
+
+        button {
+            background-color: #e0e0e0;
+            border: 1px outset #fff;
+            padding: 5px 15px;
+            font-size: 12px;
+            cursor: default; /* クリックできそうな指カーソルすら出さない */
+            color: #333;
+        }
+        
+        button:active {
+            border: 1px inset #fff;
+        }
+
+        .footer {
+            margin-top: 50px;
+            font-size: 10px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>システム待機中...</h1>
+        
+        <div class="progress-container">
+            <div class="progress-bar" id="bar"></div>
+        </div>
+        
+        <div id="status-text">リソースを初期化しています...</div>
+
+        <button onclick="doNothing()">処理を高速化</button>
+    </div>
+
+    <div class="footer">
+        プレイ時間: <span id="timer">0</span>秒 <br>
+        達成度: 0%
+    </div>
+
+    <script>
+        const bar = document.getElementById('bar');
+        const statusText = document.getElementById('status-text');
+        const timerSpan = document.getElementById('timer');
+        
+        let progress = 0;
+        let timePlayed = 0;
+
+        // 期待させておいて落とすメッセージリスト
+        const messages = [
+            "リソースを配分しています...",
+            "不要なキャッシュを確認中...",
+            "待機モードを最適化しています...",
+            "まだ読み込んでいます...",
+            "応答を待っています...",
+            "データを整理しています...",
+            "何も変更はありません...",
+            "少々お待ちください...",
+            "ほぼ完了していません...",
+            "画面を見つめてください..."
+        ];
+
+        // メインループ
+        setInterval(() => {
+            // ランダムに少しだけ進む、たまに戻る
+            const change = Math.random() > 0.8 ? -5 : Math.random() * 2;
+            progress += change;
+
+            // 99%を超えないように制御（絶対に終わらせない）
+            if (progress > 99) {
+                progress = 85; // 強制的に巻き戻し
+                statusText.innerText = "接続がリセットされました。再試行中...";
+            } else if (progress < 0) {
+                progress = 0;
+            }
+
+            // まれにメッセージ更新
+            if (Math.random() > 0.95) {
+                statusText.innerText = messages[Math.floor(Math.random() * messages.length)];
+            }
+
+            bar.style.width = progress + "%";
+
+        }, 500);
+
+        // プレイ時間タイマー
+        setInterval(() => {
+            timePlayed++;
+            timerSpan.innerText = timePlayed;
+        }, 1000);
+
+        // 何もしないボタンの関数
+        function doNothing() {
+            console.log("クリックされましたが、このボタンは機能装飾です。");
+            // ユーザーへのフィードバックは一切返さない
+        }
+    </script>
+</body>
+</html>
