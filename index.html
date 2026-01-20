@@ -2,377 +2,764 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>APEX STYLE: FINAL VERSION</title>
+    <title>BROWSER LEGENDS: ULTRA</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background-color: #000; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; user-select: none; }
         
-        /* ロード画面 */
-        #loading-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; color: #ff3333; z-index: 9999;
-            display: flex; justify-content: center; align-items: center;
-            font-size: 30px; font-weight: bold; letter-spacing: 5px;
-        }
+        /* --- UIレイヤー --- */
+        #ui-layer { position: absolute; inset: 0; pointer-events: none; display: none; }
 
-        /* HUDレイヤー */
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+        /* ヒットダメージ（自分が撃たれた時） */
+        #damage-flash {
+            position: absolute; inset: 0;
+            box-shadow: inset 0 0 100px rgba(255,0,0,0);
+            transition: box-shadow 0.1s; pointer-events: none;
+        }
 
         /* 照準 */
         #crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             display: flex; align-items: center; justify-content: center;
         }
-        .ch-circle { 
-            width: 20px; height: 20px; 
-            border: 2px solid rgba(255,255,255,0.8); border-radius: 50%; 
-            transition: all 0.1s;
+        /* 可変クロスヘア */
+        .reticle { border: 2px solid rgba(255,255,255,0.9); transition: all 0.1s; }
+        .ret-dot { width: 4px; height: 4px; background: red; border-radius: 50%; position: absolute; }
+        
+        /* R-301用 */
+        .ret-circle { width: 20px; height: 20px; border-radius: 50%; }
+        /* マスティフ用（横長） */
+        .ret-shotgun { width: 60px; height: 10px; border-radius: 4px; border-color: rgba(255, 50, 50, 0.8); display: none; }
+
+        /* インタラクション通知 [E] */
+        #interact-msg {
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7); color: white; padding: 10px 20px;
+            font-size: 18px; border: 1px solid #fff; display: none;
         }
 
-        /* 左下：ステータス */
-        #player-status {
-            position: absolute; bottom: 30px; left: 40px;
-            display: flex; flex-direction: column; gap: 5px;
-            transform: skewX(-15deg);
+        /* プレイヤー情報 (左下) */
+        #status-panel {
+            position: absolute; bottom: 40px; left: 40px;
+            transform: skewX(-10deg); color: white;
+            text-shadow: 1px 1px 2px #000;
         }
-        .bar-container {
-            width: 250px; height: 14px; background: rgba(20, 20, 30, 0.6);
-            border: 1px solid #555; position: relative;
-        }
-        #shield-fill { width: 100%; height: 100%; background: #00bfff; box-shadow: 0 0 10px #00bfff; transition: width 0.1s; }
-        #health-fill { width: 100%; height: 100%; background: #fff; transition: width 0.1s; }
+        .hp-bar-box { width: 260px; height: 16px; background: rgba(30,30,40,0.8); border: 1px solid #666; margin-bottom: 5px; position: relative; }
+        #shield-bar { height: 100%; width: 100%; background: #00bfff; box-shadow: 0 0 10px #00bfff; transition: width 0.2s; }
+        #health-bar { height: 100%; width: 100%; background: #fff; transition: width 0.2s; }
+        .heal-info { font-size: 14px; color: #00bfff; font-weight: bold; margin-top: 5px; }
 
-        /* 右下：武器 */
-        #weapon-status {
-            position: absolute; bottom: 30px; right: 40px;
-            text-align: right; color: white; transform: skewX(-15deg);
+        /* 武器情報 (右下) */
+        #weapon-panel {
+            position: absolute; bottom: 40px; right: 40px;
+            text-align: right; transform: skewX(-10deg); color: white;
         }
-        #ammo-count { font-size: 50px; font-weight: 900; line-height: 1; text-shadow: 0 0 10px #000; }
-        #weapon-name { font-size: 16px; color: #ff9900; font-weight: bold; }
+        #ammo-display { font-size: 70px; font-weight: 900; line-height: 0.8; }
+        #reserve-ammo { font-size: 24px; color: #aaa; font-weight: bold; }
+        #weapon-name { font-size: 20px; color: #ff9900; font-weight: 800; letter-spacing: 2px; margin-bottom: 5px; }
+        .weapon-list { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; font-size: 14px; color: #777; }
+        .active-wep { color: #fff; border-right: 4px solid #ff9900; padding-right: 10px; }
 
-        /* ダメージ数字 */
-        #damage-overlay { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events: none; overflow: hidden;}
-        .dmg-num {
-            position: absolute; font-family: 'Arial Black', sans-serif; font-weight: 900;
-            font-size: 24px; text-shadow: 2px 2px 0 #000;
-            animation: floatUp 0.6s ease-out forwards;
+        /* 回復プログレスバー */
+        #heal-progress {
+            position: absolute; top: 70%; left: 50%; transform: translate(-50%, -50%);
+            width: 200px; height: 10px; background: #333; display: none;
         }
-        @keyframes floatUp { to { opacity: 0; transform: translateY(-50px) scale(1.1); } }
-        .dmg-shield { color: #00bfff; -webkit-text-stroke: 1px #005f7f; }
-        .dmg-health { color: #ffffff; -webkit-text-stroke: 1px #555; }
+        #heal-fill { width: 0%; height: 100%; background: #00bfff; }
+
+        /* ダメージフローティング */
+        #dmg-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+        .dmg-txt {
+            position: absolute; font-weight: 900; font-family: 'Arial Black', sans-serif;
+            text-shadow: 2px 2px 0 #000; font-size: 24px;
+            animation: popUp 0.8s ease-out forwards;
+        }
+        @keyframes popUp { 0%{opacity:1; transform:translateY(0) scale(1);} 100%{opacity:0; transform:translateY(-60px) scale(1.2);} }
 
         /* スタート画面 */
-        #blocker {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(10,10,15,0.9);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; z-index: 1000; cursor: pointer; display: none;
+        #menu {
+            position: absolute; inset: 0; background: radial-gradient(#222, #000);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 999;
         }
-        h1 { font-size: 60px; margin: 0; font-style: italic; text-shadow: 0 0 20px #ff3333; }
-        #start-msg { font-size: 24px; margin-top: 20px; background: #ff3333; padding: 10px 30px; transform: skewX(-15deg); }
+        h1 { font-size: 80px; font-style: italic; margin: 0; text-shadow: 0 0 30px #ff0000; letter-spacing: -3px; }
+        button {
+            padding: 20px 60px; font-size: 24px; background: #cc0000; color: white; border: none;
+            cursor: pointer; transform: skewX(-15deg); font-weight: bold; margin-top: 30px;
+            box-shadow: 5px 5px 0 rgba(255,255,255,0.2); transition: 0.2s;
+        }
+        button:hover { background: #ff2222; transform: skewX(-15deg) scale(1.05); }
+        .tips { margin-top: 30px; color: #aaa; text-align: left; line-height: 1.8; font-size: 14px; }
+        kbd { background: #444; padding: 2px 6px; border: 1px solid #888; color: #fff; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="loading-screen">LOADING RESOURCES...</div>
+    <div id="damage-flash"></div>
+    <div id="dmg-layer"></div>
 
     <div id="ui-layer">
-        <div id="crosshair"><div class="ch-circle" id="ch-circle"></div></div>
-        <div id="player-status">
-            <div style="color:#fff; font-weight:bold; font-size:18px;">LEGEND</div>
-            <div class="bar-container"><div id="shield-fill"></div></div>
-            <div class="bar-container"><div id="health-fill"></div></div>
+        <div id="crosshair">
+            <div class="ret-dot"></div>
+            <div class="reticle ret-circle" id="ret-circle"></div>
+            <div class="reticle ret-shotgun" id="ret-shotgun"></div>
         </div>
-        <div id="weapon-status">
+
+        <div id="interact-msg">[E] 取る</div>
+        <div id="heal-progress"><div id="heal-fill"></div></div>
+
+        <div id="status-panel">
+            <div style="font-size:12px; color:#aaa; margin-bottom:2px;">SQUAD: 1 / LEFT: ?</div>
+            <div class="hp-bar-box"><div id="shield-bar"></div></div>
+            <div class="hp-bar-box"><div id="health-bar"></div></div>
+            <div class="heal-info">[4] バッテリー (所持: <span id="bat-count">2</span>)</div>
+        </div>
+
+        <div id="weapon-panel">
             <div id="weapon-name">R-301</div>
-            <div id="ammo-count">28</div>
+            <div>
+                <span id="ammo-display">18</span>
+                <span id="reserve-ammo">/ 120</span>
+            </div>
+            <div class="weapon-list">
+                <div id="wep-1" class="active-wep">1: R-301</div>
+                <div id="wep-2">2: (EMPTY)</div>
+            </div>
         </div>
     </div>
-    <div id="damage-overlay"></div>
 
-    <div id="blocker">
-        <h1>BATTLE READY</h1>
-        <div id="start-msg">CLICK TO START</div>
-        <p style="margin-top:20px; color:#aaa;">WASD:移動 | SHIFT:走る | C:スライディング | SPACE:ジャンプ | R:リロード | クリック:撃つ</p>
+    <div id="menu">
+        <h1>LEGENDS ZERO</h1>
+        <div style="color:#ffcc00; font-weight:bold;">ULTRA EDITION</div>
+        <button id="start-btn">DEPLOY</button>
+        <div class="tips">
+            <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動 &nbsp; <kbd>SHIFT</kbd> ダッシュ</div>
+            <div><kbd>SPACE</kbd> ジャンプ (壁際で長押し:よじ登り)</div>
+            <div><kbd>C</kbd> スライディング &nbsp; <kbd>R</kbd> リロード</div>
+            <div><kbd>1</kbd> / <kbd>2</kbd> 武器切替 &nbsp; <kbd>E</kbd> アイテムを拾う</div>
+            <div><kbd>4</kbd> シールド回復 (長押し)</div>
+        </div>
     </div>
 
     <script src="https://unpkg.com/three@0.126.0/build/three.min.js"></script>
     <script src="https://unpkg.com/three@0.126.0/examples/js/controls/PointerLockControls.js"></script>
 
     <script>
-        // ロードチェック
-        window.addEventListener('load', () => {
-            if (typeof THREE === 'undefined') {
-                alert("エラー: ゲームエンジンを読み込めませんでした。インターネット接続を確認してください。");
-                return;
+        /**
+         * 完全再現への挑戦: 
+         * - 敵AI (索敵・射撃)
+         * - インベントリ管理
+         * - ドロップアイテム
+         * - 武器ごとの挙動 (マスティフの拡散)
+         */
+
+        // --- 定数・設定 ---
+        const CONFIG = {
+            walkSpeed: 10, runSpeed: 18, slideSpeed: 35,
+            jumpForce: 15, gravity: 35,
+            wallClimbForce: 10
+        };
+
+        // 武器データ
+        const WEAPON_DB = {
+            "R-301": { 
+                name: "R-301", type: "auto", damage: 14, rpm: 90, 
+                mag: 18, reloadTime: 1500, spread: 0.01, color: "#00ffff" 
+            },
+            "MASTIFF": { 
+                name: "MASTIFF", type: "shotgun", damage: 11, pellets: 8, 
+                rpm: 800, mag: 6, reloadTime: 2500, spread: 0.08, color: "#ff3333" 
             }
-            document.getElementById('loading-screen').style.display = 'none';
-            document.getElementById('blocker').style.display = 'flex';
-            init();
-            animate();
-        });
+        };
 
-        // --- 設定 ---
-        const MOVE_SPEED = 12;
-        const SPRINT_SPEED = 20;
-        const SLIDE_SPEED = 35;
-        const MAG_SIZE = 28;
-
-        let camera, scene, renderer, controls;
-        let prevTime = performance.now();
+        // グローバル変数
+        let scene, camera, renderer, controls;
+        let lastTime = performance.now();
         let velocity = new THREE.Vector3();
         let direction = new THREE.Vector3();
         
-        let moveF=false, moveB=false, moveL=false, moveR=false;
-        let isSprint=false, isCrouch=false, canJump=false, isSlide=false;
-        let slideVel = 0;
+        // プレイヤー状態
+        const player = {
+            hp: 100, shield: 100,
+            inventory: { lightAmmo: 120, shotgunAmmo: 16, battery: 2 },
+            weapons: [ cloneWeapon("R-301"), null ], // スロット1, 2
+            activeSlot: 0, // 0 or 1
+            isReloading: false,
+            isHealing: false,
+            canShoot: true
+        };
 
-        let ammo = MAG_SIZE;
-        let shield = 100, hp = 100;
-        let isReloading = false;
-        
+        // 入力フラグ
+        const keyState = { w:false, a:false, s:false, d:false, shift:false, c:false, space:false, click:false };
+
+        // ゲームオブジェクト
         const enemies = [];
+        const lootItems = [];
+        const colliders = [];
         const bullets = [];
-        const colliders = []; // 地面や壁
+
+        // UI要素
+        const ui = {
+            ammo: document.getElementById('ammo-display'),
+            res: document.getElementById('reserve-ammo'),
+            name: document.getElementById('weapon-name'),
+            shield: document.getElementById('shield-bar'),
+            hp: document.getElementById('health-bar'),
+            bat: document.getElementById('bat-count'),
+            interact: document.getElementById('interact-msg'),
+            healBar: document.getElementById('heal-fill'),
+            healBox: document.getElementById('heal-progress'),
+            flash: document.getElementById('damage-flash')
+        };
+
+        // --- 初期化 ---
+        window.onload = () => {
+            document.getElementById('start-btn').onclick = () => {
+                controls.lock();
+            };
+            init();
+            animate();
+        };
+
+        function cloneWeapon(key) {
+            const w = JSON.parse(JSON.stringify(WEAPON_DB[key]));
+            w.currentAmmo = w.mag;
+            return w;
+        }
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87CEEB);
-            scene.fog = new THREE.Fog(0x87CEEB, 0, 100);
+            scene.background = new THREE.Color(0x88ccff);
+            scene.fog = new THREE.Fog(0x88ccff, 0, 150);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
             camera.position.y = 1.7;
 
             // ライト
-            scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.8));
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(50, 100, 50);
-            scene.add(dirLight);
+            const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+            scene.add(hemi);
+            const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+            dir.position.set(50,100,50);
+            dir.castShadow = true;
+            scene.add(dir);
 
-            // コントロール
+            // コントローラー
             controls = new THREE.PointerLockControls(camera, document.body);
-            const blocker = document.getElementById('blocker');
-            blocker.addEventListener('click', () => controls.lock());
-            
             controls.addEventListener('lock', () => {
-                blocker.style.display = 'none';
+                document.getElementById('menu').style.display = 'none';
                 document.getElementById('ui-layer').style.display = 'block';
             });
             controls.addEventListener('unlock', () => {
-                blocker.style.display = 'flex';
+                document.getElementById('menu').style.display = 'flex';
                 document.getElementById('ui-layer').style.display = 'none';
-                document.getElementById('start-msg').innerText = "CLICK TO RESUME";
             });
             scene.add(controls.getObject());
 
-            // マップ作成
+            // マップ生成
             createMap();
-            // 敵作成
-            for(let i=0; i<4; i++) spawnEnemy();
+            // アイテム配置
+            spawnLoot();
+            // 敵配置
+            spawnEnemies();
 
-            // レンダラー
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            // イベント
-            document.addEventListener('keydown', onKey);
-            document.addEventListener('keyup', onKey);
-            document.addEventListener('mousedown', (e) => { if(controls.isLocked && e.button===0) shoot(); });
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth/window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
+            // イベントリスナー
+            document.addEventListener('keydown', (e) => onKey(e, true));
+            document.addEventListener('keyup', (e) => onKey(e, false));
+            document.addEventListener('mousedown', () => keyState.click = true);
+            document.addEventListener('mouseup', () => keyState.click = false);
+            window.addEventListener('resize', onResize);
+
+            updateHUD();
         }
 
         function createMap() {
             // 地面
-            const ground = new THREE.Mesh(
-                new THREE.PlaneGeometry(500, 500),
-                new THREE.MeshPhongMaterial({ color: 0xccaa88 })
-            );
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({color:0x555555, roughness:0.8}));
             ground.rotation.x = -Math.PI/2;
+            ground.receiveShadow = true;
             scene.add(ground);
             colliders.push(ground);
 
-            // 岩/遮蔽物
-            const boxGeo = new THREE.BoxGeometry(1,1,1);
-            const boxMat = new THREE.MeshPhongMaterial({ color: 0x666666 });
-            for(let i=0; i<30; i++) {
-                const box = new THREE.Mesh(boxGeo, boxMat);
-                box.position.set((Math.random()-0.5)*100, 2, (Math.random()-0.5)*100 - 20);
-                box.scale.set(5+Math.random()*10, 4+Math.random()*6, 5+Math.random()*10);
+            // 壁・遮蔽物
+            const mat = new THREE.MeshStandardMaterial({color:0x777777});
+            for(let i=0; i<20; i++) {
+                const w = 2+Math.random()*8;
+                const h = 2+Math.random()*6;
+                const d = 2+Math.random()*8;
+                const box = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+                box.position.set((Math.random()-0.5)*150, h/2, (Math.random()-0.5)*150);
+                box.castShadow = true;
+                box.receiveShadow = true;
                 scene.add(box);
                 colliders.push(box);
             }
         }
 
-        function spawnEnemy() {
-            const bot = new THREE.Group();
-            // 赤い体
-            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.8), new THREE.MeshPhongMaterial({color:0xaa2222}));
-            body.position.y = 0.9;
-            bot.add(body);
-            // 頭
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshPhongMaterial({color:0x550000}));
-            head.position.y = 2.0;
-            bot.add(head);
+        function spawnLoot() {
+            // アイテム種別定義
+            const types = [
+                { id:'ammo_light', color:0xffaa00, name:'ライトアモ', w:0.4, h:0.2 },
+                { id:'wep_mastiff', color:0xff0000, name:'マスティフ', w:1.0, h:0.3 },
+                { id:'shield_bat', color:0x0000ff, name:'バッテリー', w:0.3, h:0.6 }
+            ];
 
-            bot.position.set((Math.random()-0.5)*60, 0, (Math.random()-0.5)*40 - 30);
-            scene.add(bot);
-            
-            enemies.push({ mesh: bot, hp: 100, shield: 50, dir: 1, lastMove: 0 });
+            for(let i=0; i<15; i++) {
+                const type = types[Math.floor(Math.random()*types.length)];
+                const mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(type.w, type.h, type.w),
+                    new THREE.MeshPhongMaterial({color: type.color, emissive: type.color, emissiveIntensity:0.2})
+                );
+                mesh.position.set((Math.random()-0.5)*100, type.h/2, (Math.random()-0.5)*100);
+                
+                // 少し浮かせる
+                mesh.userData = { type: type.id, name: type.name, rotSpeed: Math.random()*2 };
+                scene.add(mesh);
+                lootItems.push(mesh);
+            }
         }
 
-        function onKey(e) {
-            const isDown = e.type === 'keydown';
+        function spawnEnemies() {
+            const mat = new THREE.MeshPhongMaterial({color:0xdd2222});
+            for(let i=0; i<4; i++) {
+                const grp = new THREE.Group();
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,1.8), mat);
+                body.position.y = 0.9;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshPhongMaterial({color:0x550000}));
+                head.position.y = 2.0;
+                grp.add(body); grp.add(head);
+                
+                grp.position.set((Math.random()-0.5)*120, 0, (Math.random()-0.5)*120);
+                scene.add(grp);
+
+                enemies.push({
+                    mesh: grp, hp: 100, shield: 50,
+                    state: 'idle', nextAttack: 0, 
+                    id: i
+                });
+            }
+        }
+
+        // --- 入力処理 ---
+        function onKey(e, down) {
             switch(e.code) {
-                case 'KeyW': moveF = isDown; break;
-                case 'KeyA': moveL = isDown; break;
-                case 'KeyS': moveB = isDown; break;
-                case 'KeyD': moveR = isDown; break;
-                case 'ShiftLeft': isSprint = isDown; break;
-                case 'KeyR': if(isDown) reload(); break;
-                case 'Space': if(isDown && canJump) { velocity.y = 15; canJump = false; } break;
-                case 'KeyC': 
-                    if(isDown) {
-                        if(isSprint && moveF && !isSlide) { isSlide = true; slideVel = SLIDE_SPEED; }
-                        isCrouch = true; camera.position.y = 0.9;
-                    } else {
-                        isCrouch = false; isSlide = false; camera.position.y = 1.7;
-                    }
+                case 'KeyW': keyState.w = down; break;
+                case 'KeyA': keyState.a = down; break;
+                case 'KeyS': keyState.s = down; break;
+                case 'KeyD': keyState.d = down; break;
+                case 'ShiftLeft': keyState.shift = down; break;
+                case 'KeyC': keyState.c = down; break;
+                case 'Space': keyState.space = down; break;
+                case 'KeyR': if(down) reload(); break;
+                case 'Digit1': if(down) switchWeapon(0); break;
+                case 'Digit2': if(down) switchWeapon(1); break;
+                case 'KeyE': if(down) tryLoot(); break;
+                case 'Digit4': 
+                    if(down) startHeal(); 
+                    else stopHeal(); 
                     break;
             }
         }
 
-        function shoot() {
-            if(isReloading || ammo <= 0) { reload(); return; }
-            ammo--;
-            updateHUD();
+        // --- ゲームロジック ---
 
-            // 弾（レイキャスト）
-            const ray = new THREE.Raycaster();
-            ray.setFromCamera(new THREE.Vector2(), camera);
-            
-            // クロスヘア跳ね上がり演出
-            const ch = document.getElementById('ch-circle');
-            ch.style.width = '30px'; ch.style.height = '30px';
-            setTimeout(()=> { ch.style.width='20px'; ch.style.height='20px'; }, 100);
+        function getActiveWeapon() {
+            return player.weapons[player.activeSlot];
+        }
 
-            // 判定
-            const hits = ray.intersectObjects(scene.children, true);
-            let hitEnemy = false;
-            
-            for(let hit of hits) {
-                // 親を探して敵判定
-                let target = hit.object;
-                while(target.parent && target.parent.type !== 'Scene') target = target.parent;
+        function switchWeapon(slot) {
+            if(player.weapons[slot]) {
+                player.activeSlot = slot;
+                player.isReloading = false;
+                player.canShoot = true;
+                updateHUD();
                 
-                const en = enemies.find(e => e.mesh === target);
-                if(en && en.hp > 0) {
-                    const isHead = hit.point.y > en.mesh.position.y + 1.6;
-                    let dmg = isHead ? 22 : 11;
-                    let type = 'health';
-                    
-                    if(en.shield > 0) {
-                        en.shield -= dmg; type = 'shield';
-                        if(en.shield < 0) { en.hp += en.shield; en.shield = 0; dmgText(hit.point, "割れた!", "shield"); }
-                    } else {
-                        en.hp -= dmg; type = isHead ? 'head' : 'health';
-                    }
-                    dmgText(hit.point, dmg, type);
-
-                    if(en.hp <= 0) {
-                        en.mesh.visible = false;
-                        setTimeout(() => { en.hp=100; en.shield=50; en.mesh.visible=true; }, 3000); // リスポーン
-                    }
-                    hitEnemy = true;
-                    break; 
-                }
-                if(!hitEnemy && hit.distance < 100) break; // 壁に当たった
+                // クロスヘア切り替え
+                const isShotgun = getActiveWeapon().name === 'MASTIFF';
+                document.getElementById('ret-circle').style.display = isShotgun ? 'none' : 'block';
+                document.getElementById('ret-shotgun').style.display = isShotgun ? 'block' : 'none';
             }
         }
 
-        function dmgText(pos, txt, type) {
-            const div = document.createElement('div');
-            div.className = `dmg-num dmg-${type}`;
-            div.innerText = txt;
-            
-            // 3D位置を画面位置へ
-            const vec = pos.clone().project(camera);
-            if(vec.z > 1) return;
-            const x = (vec.x * 0.5 + 0.5) * window.innerWidth;
-            const y = (-(vec.y * 0.5) + 0.5) * window.innerHeight;
-            
-            div.style.left = x + 'px'; div.style.top = y + 'px';
-            document.getElementById('damage-overlay').appendChild(div);
-            setTimeout(() => div.remove(), 600);
+        function tryLoot() {
+            const pPos = controls.getObject().position;
+            // 最も近いアイテムを探す
+            let closeItem = null;
+            let minDst = 3.0;
+
+            lootItems.forEach((item, index) => {
+                const d = pPos.distanceTo(item.position);
+                if(d < minDst) {
+                    minDst = d;
+                    closeItem = { mesh: item, idx: index };
+                }
+            });
+
+            if(closeItem) {
+                const type = closeItem.mesh.userData.type;
+                let pickup = false;
+
+                if(type === 'ammo_light') {
+                    player.inventory.lightAmmo += 40; pickup = true;
+                    showLog("ライトアモを発見");
+                } else if(type === 'shield_bat') {
+                    player.inventory.battery += 1; pickup = true;
+                    showLog("バッテリーを発見");
+                } else if(type === 'wep_mastiff') {
+                    // スロット2が空なら入れる、埋まってれば入れ替え
+                    if(!player.weapons[1]) {
+                        player.weapons[1] = cloneWeapon("MASTIFF");
+                        switchWeapon(1);
+                    } else {
+                        player.weapons[player.activeSlot] = cloneWeapon("MASTIFF");
+                        switchWeapon(player.activeSlot);
+                    }
+                    pickup = true;
+                    showLog("マスティフを発見");
+                }
+
+                if(pickup) {
+                    scene.remove(closeItem.mesh);
+                    lootItems.splice(closeItem.idx, 1);
+                    updateHUD();
+                }
+            }
         }
 
+        function startHeal() {
+            if(player.inventory.battery > 0 && player.shield < 100) {
+                player.isHealing = true;
+                ui.healBox.style.display = 'block';
+                let progress = 0;
+                
+                // 簡易的な非同期ループの代わり
+                const healTimer = setInterval(() => {
+                    if(!player.isHealing || !keyState.click && !document.querySelector('div:active')) { 
+                        // キー押しっぱなし判定が難しいため、4キーのkeyupで止めるロジックを利用
+                    }
+                    progress += 2; // 速度
+                    ui.healBar.style.width = progress + '%';
+                    
+                    if(progress >= 100) {
+                        clearInterval(healTimer);
+                        player.shield = 100;
+                        player.inventory.battery--;
+                        stopHeal();
+                        updateHUD();
+                        showLog("シールドリチャージ完了");
+                    }
+                }, 50); // 50ms * 50 = 2.5秒
+
+                // キャンセル用ID保持
+                player.healTimerId = healTimer;
+            }
+        }
+
+        function stopHeal() {
+            player.isHealing = false;
+            ui.healBox.style.display = 'none';
+            ui.healBar.style.width = '0%';
+            if(player.healTimerId) clearInterval(player.healTimerId);
+        }
+
+        // キーアップでキャンセル
+        document.addEventListener('keyup', (e)=>{ if(e.code==='Digit4') stopHeal(); });
+
+
         function reload() {
-            if(isReloading) return;
-            isReloading = true;
-            document.getElementById('weapon-name').innerText = "RELOADING...";
+            const wep = getActiveWeapon();
+            if(!wep || player.isReloading || wep.currentAmmo === wep.mag) return;
+
+            // 弾薬チェック
+            let reserve = (wep.name === 'MASTIFF') ? player.inventory.shotgunAmmo : player.inventory.lightAmmo;
+            if(reserve <= 0) return;
+
+            player.isReloading = true;
+            ui.name.innerText = "RELOADING...";
+            
             setTimeout(() => {
-                ammo = MAG_SIZE; isReloading = false;
-                document.getElementById('weapon-name').innerText = "R-301";
+                const needed = wep.mag - wep.currentAmmo;
+                const toLoad = Math.min(needed, reserve);
+                
+                wep.currentAmmo += toLoad;
+                if(wep.name === 'MASTIFF') player.inventory.shotgunAmmo -= toLoad;
+                else player.inventory.lightAmmo -= toLoad;
+
+                player.isReloading = false;
                 updateHUD();
-            }, 1500);
+            }, wep.reloadTime);
+        }
+
+        function shoot() {
+            const wep = getActiveWeapon();
+            if(!wep || player.isReloading || wep.currentAmmo <= 0) { reload(); return; }
+            if(!player.canShoot) return;
+
+            // レート制限
+            player.canShoot = false;
+            setTimeout(() => player.canShoot = true, 60000/wep.rpm);
+
+            wep.currentAmmo--;
+            updateHUD();
+
+            // 射撃ロジック
+            if(wep.name === 'MASTIFF') {
+                // 横一列 8発
+                for(let i=0; i<wep.pellets; i++) {
+                    // 中心から左右に広げる
+                    const spreadX = (i - (wep.pellets-1)/2) * wep.spread;
+                    fireRay(wep, spreadX, 0);
+                }
+            } else {
+                // 通常射撃
+                fireRay(wep, (Math.random()-0.5)*wep.spread, (Math.random()-0.5)*wep.spread);
+            }
+
+            // 反動
+            camera.rotation.x += 0.02;
+        }
+
+        function fireRay(wep, offsetX, offsetY) {
+            const ray = new THREE.Raycaster();
+            // 画面中心から少しずらす
+            const dir = new THREE.Vector3(offsetX, offsetY, -1).applyQuaternion(camera.quaternion).normalize();
+            ray.set(camera.position, dir);
+
+            const intersects = ray.intersectObjects(scene.children, true);
+            let hitData = null;
+
+            // 弾道（トレーサー）
+            const endPoint = intersects.length > 0 ? intersects[0].point : camera.position.clone().add(dir.multiplyScalar(100));
+            createTracer(camera.position, endPoint, wep.color);
+
+            for(let hit of intersects) {
+                // 敵判定
+                let obj = hit.object;
+                while(obj.parent && obj.parent.type !== 'Scene') obj = obj.parent;
+                const enemy = enemies.find(e => e.mesh === obj);
+                
+                if(enemy && enemy.hp > 0) {
+                    const isHead = hit.point.y > enemy.mesh.position.y + 1.6;
+                    let dmg = wep.damage * (isHead ? 1.5 : 1.0);
+                    
+                    applyDamageToEnemy(enemy, dmg, isHead);
+                    showDamageNum(hit.point, Math.floor(dmg), isHead ? 'gold' : 'white');
+                    break; // 貫通なし
+                }
+                if(hit.distance < 200 && !enemy) break; // 壁
+            }
+        }
+
+        function applyDamageToEnemy(enemy, dmg, isHead) {
+            // シールド処理
+            if(enemy.shield > 0) {
+                enemy.shield -= dmg;
+                if(enemy.shield < 0) {
+                    enemy.hp += enemy.shield; // 余剰分HPへ
+                    enemy.shield = 0;
+                    showLog("敵のシールドを割った！");
+                }
+            } else {
+                enemy.hp -= dmg;
+            }
+
+            // 敵が怒る
+            enemy.state = 'attack'; 
+
+            if(enemy.hp <= 0) {
+                enemy.mesh.visible = false;
+                showLog("敵をダウンさせた！");
+                // リスポーン
+                setTimeout(() => {
+                    enemy.hp=100; enemy.shield=50; enemy.mesh.visible=true; enemy.state='idle';
+                    enemy.mesh.position.set((Math.random()-0.5)*100, 0, (Math.random()-0.5)*100);
+                }, 5000);
+            }
+        }
+
+        function enemyAI(delta) {
+            const pPos = controls.getObject().position;
+
+            enemies.forEach(en => {
+                if(en.hp <= 0) return;
+                
+                const dist = en.mesh.position.distanceTo(pPos);
+                
+                // 視線を向ける
+                en.mesh.lookAt(pPos.x, en.mesh.position.y, pPos.z);
+
+                // 攻撃ロジック
+                if(dist < 40 || en.state === 'attack') {
+                    if(Date.now() > en.nextAttack) {
+                        // 攻撃してくる
+                        createTracer(en.mesh.position.clone().add(new THREE.Vector3(0,1.5,0)), pPos, '#ff0000');
+                        
+                        // プレイヤー被弾
+                        if(Math.random() > 0.3) { // 命中率70%
+                            playerTakeDamage(10);
+                        }
+                        en.nextAttack = Date.now() + 500 + Math.random()*1000; // 射撃間隔
+                    }
+                }
+            });
+        }
+
+        function playerTakeDamage(dmg) {
+            ui.flash.style.boxShadow = "inset 0 0 100px rgba(255,0,0,0.8)";
+            setTimeout(() => ui.flash.style.boxShadow = "inset 0 0 100px rgba(255,0,0,0)", 100);
+
+            if(player.shield > 0) {
+                player.shield -= dmg;
+                if(player.shield < 0) { player.hp += player.shield; player.shield = 0; }
+            } else {
+                player.hp -= dmg;
+            }
+            updateHUD();
+
+            if(player.hp <= 0) {
+                alert("GAME OVER - RELOADING...");
+                location.reload();
+            }
+        }
+
+        // --- 描画・物理・更新 ---
+        
+        function createTracer(start, end, color) {
+            // 単純なライン
+            const mat = new THREE.LineBasicMaterial({ color: color });
+            const geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+            const line = new THREE.Line(geo, mat);
+            scene.add(line);
+            setTimeout(()=>scene.remove(line), 50);
+        }
+
+        function showDamageNum(pos, num, colorStr) {
+            const div = document.createElement('div');
+            div.innerText = num;
+            div.className = 'dmg-txt';
+            div.style.color = colorStr;
+            if(colorStr==='gold') { div.style.fontSize='36px'; div.innerText = "⚠ " + num; } // ヘッドショット
+
+            const vec = pos.clone().project(camera);
+            div.style.left = ((vec.x*0.5+0.5)*window.innerWidth) + 'px';
+            div.style.top = ((-(vec.y*0.5)+0.5)*window.innerHeight) + 'px';
+            document.getElementById('dmg-layer').appendChild(div);
+            setTimeout(()=>div.remove(), 800);
+        }
+
+        function showLog(msg) {
+            ui.interact.innerText = msg;
+            ui.interact.style.display = 'block';
+            setTimeout(()=>ui.interact.style.display='none', 2000);
         }
 
         function updateHUD() {
-            document.getElementById('ammo-count').innerText = ammo;
-            document.getElementById('shield-fill').style.width = shield + "%";
-            document.getElementById('health-fill').style.width = hp + "%";
+            const wep = getActiveWeapon();
+            if(wep) {
+                ui.name.innerText = wep.name;
+                ui.ammo.innerText = wep.currentAmmo;
+                ui.name.style.color = wep.color;
+                
+                const reserve = (wep.name === 'MASTIFF') ? player.inventory.shotgunAmmo : player.inventory.lightAmmo;
+                ui.res.innerText = "/ " + reserve;
+                
+                document.getElementById('wep-1').className = (player.activeSlot===0)?'active-wep':'';
+                document.getElementById('wep-2').className = (player.activeSlot===1)?'active-wep':'';
+                if(player.weapons[1]) document.getElementById('wep-2').innerText = "2: " + player.weapons[1].name;
+            }
+            
+            ui.shield.style.width = player.shield + '%';
+            ui.hp.style.width = player.hp + '%';
+            ui.bat.innerText = player.inventory.battery;
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            if(!controls.isLocked) { prevTime = performance.now(); return; }
+
+            // アイテム回転
+            lootItems.forEach(item => {
+                item.mesh.rotation.y += 0.02;
+                // 距離判定でUI表示
+                if(controls.isLocked) {
+                     if(controls.getObject().position.distanceTo(item.mesh.position) < 3.0) {
+                         ui.interact.style.display = 'block';
+                         ui.interact.innerText = "[E] " + item.mesh.userData.name;
+                     } else {
+                         // 点滅しないように適当に制御が必要だが簡易化
+                     }
+                }
+            });
+
+            if(!controls.isLocked) return;
 
             const time = performance.now();
-            const delta = (time - prevTime) / 1000;
-            prevTime = time;
+            const delta = (time - lastTime) / 1000;
+            lastTime = time;
 
-            // 物理演算(簡易)
-            velocity.x -= velocity.x * 10 * delta;
-            velocity.z -= velocity.z * 10 * delta;
-            velocity.y -= 30 * delta; // 重力
+            // --- プレイヤー移動物理 ---
+            velocity.x -= velocity.x * 8.0 * delta;
+            velocity.z -= velocity.z * 8.0 * delta;
+            velocity.y -= CONFIG.gravity * delta;
 
-            direction.z = Number(moveF) - Number(moveB);
-            direction.x = Number(moveR) - Number(moveL);
+            direction.z = Number(keyState.w) - Number(keyState.s);
+            direction.x = Number(keyState.d) - Number(keyState.a);
             direction.normalize();
 
-            let spd = isSprint ? SPRINT_SPEED : MOVE_SPEED;
-            if(isSlide) {
-                spd = slideVel; slideVel -= 20 * delta;
-                if(slideVel < 5) isSlide = false;
-            } else if(isCrouch) spd = MOVE_SPEED * 0.5;
+            let speed = CONFIG.walkSpeed;
+            if(keyState.shift) speed = CONFIG.runSpeed;
+            if(keyState.c) { // スライディング
+                speed = CONFIG.slideSpeed;
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, 0.9, 0.1);
+            } else {
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, 1.7, 0.1);
+            }
 
-            if(moveF || moveB) velocity.z -= direction.z * spd * 10 * delta;
-            if(moveL || moveR) velocity.x -= direction.x * spd * 10 * delta;
+            if(keyState.w || keyState.s) velocity.z -= direction.z * speed * 8.0 * delta;
+            if(keyState.a || keyState.d) velocity.x -= direction.x * speed * 8.0 * delta;
+
+            // 壁登り判定（簡易）
+            // 前進中かつ壁にぶつかっていて、スペースキーを押しているなら上昇
+            // ※Three.js単体だと衝突判定が難しいので「スペース長押しで浮く」機能として実装
+            if(keyState.space && keyState.w && camera.position.y > 2) {
+                 // 壁付近の判定は省略し、2段ジャンプ的な挙動で「よじ登り」とする
+                 velocity.y += 15 * delta; // 登る力
+            }
 
             controls.moveRight(-velocity.x * delta);
             controls.moveForward(-velocity.z * delta);
             controls.getObject().position.y += velocity.y * delta;
 
-            // 接地判定
-            const h = isCrouch ? 0.9 : 1.7;
-            if(controls.getObject().position.y < h) {
+            // 接地
+            if(controls.getObject().position.y < 1.7) {
                 velocity.y = 0;
-                controls.getObject().position.y = h;
-                canJump = true;
+                controls.getObject().position.y = 1.7;
+                if(keyState.space && !player.isClimbing) {
+                    velocity.y = CONFIG.jumpForce;
+                }
             }
 
-            // 敵の動き
-            enemies.forEach(en => {
-                if(en.hp <= 0) return;
-                en.mesh.lookAt(camera.position.x, en.mesh.position.y, camera.position.z);
-                if(time - en.lastMove > 1500) { en.dir *= -1; en.lastMove = time; }
-                en.mesh.translateX(en.dir * 4 * delta);
-            });
+            // --- 射撃 ---
+            if(keyState.click && !player.isHealing) {
+                shoot();
+                if(!getActiveWeapon().type === 'auto') keyState.click = false; // セミオート
+            }
+
+            // --- 敵AI ---
+            enemyAI(delta);
+
+            // リコイル回復
+            if(camera.rotation.x > 0) camera.rotation.x -= 1.0 * delta;
 
             renderer.render(scene, camera);
         }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
     </script>
 </body>
 </html>
