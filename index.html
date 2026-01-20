@@ -2,102 +2,138 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>FPS for MacBook Pro</title>
+    <title>APEX STYLE: CLIMB & SHOOT</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; background-color: #000; user-select: none; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background-color: #000; user-select: none; }
         
         /* 照準 */
         #crosshair {
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 20px; height: 20px;
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 10;
-        }
-        #crosshair::after {
-            content: ''; position: absolute;
-            top: 50%; left: 50%;
-            width: 4px; height: 4px;
-            background-color: #00ff00;
-            transform: translate(-50%, -50%);
-            border-radius: 50%;
+            position: absolute; top: 50%; left: 50%;
+            width: 6px; height: 6px; background-color: rgba(255, 255, 255, 0.9);
+            border: 2px solid rgba(0,0,0,0.5);
+            border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
         }
 
-        /* UI情報 */
-        #ui-layer {
-            position: absolute;
-            top: 20px; left: 20px;
-            color: #fff;
-            font-weight: 200;
-            z-index: 10;
-            pointer-events: none;
-            background: rgba(0,0,0,0.3);
-            padding: 10px;
-            border-radius: 8px;
-            backdrop-filter: blur(5px); /* Macらしいすりガラス効果 */
+        /* HUD */
+        #hud {
+            position: absolute; bottom: 30px; left: 30px;
+            color: #fff; z-index: 10; pointer-events: none;
+            display: flex; flex-direction: column; gap: 8px;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .bar-wrap { display: flex; align-items: center; gap: 10px; }
+        .bar-bg { width: 200px; height: 12px; background: rgba(0,0,0,0.6); border: 1px solid #555; skewX: -20deg; transform: skewX(-20deg); }
+        #shield-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #00a2ff, #006eff); transition: width 0.1s; }
+        #health-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff3333, #aa0000); transition: width 0.1s; }
+        .label { font-size: 14px; font-weight: bold; width: 60px; text-align: right; }
+        
+        #ammo-box {
+            position: absolute; bottom: 30px; right: 30px;
+            text-align: right; color: white;
+            font-family: 'Arial Black', sans-serif;
+            font-size: 40px; pointer-events: none;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+        }
+        #ammo-sub { font-size: 16px; color: #ccc; font-weight: normal; }
+
+        /* 通知 */
+        #msg-area {
+            position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; width: 100%; pointer-events: none;
+        }
+        .kill-msg {
+            color: #ff3333; font-size: 24px; font-weight: bold; 
+            text-shadow: 0 0 10px rgba(255,0,0,0.5);
+            opacity: 0; transition: opacity 0.5s;
         }
 
         /* スタート画面 */
         #blocker {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.85);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            z-index: 20;
-            cursor: pointer;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(20,20,30,0.9) 0%, rgba(0,0,0,1) 100%);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: white; z-index: 20; cursor: pointer;
         }
-        
-        h1 { font-size: 40px; margin-bottom: 10px; letter-spacing: 2px; }
-        .key { border: 1px solid #fff; padding: 2px 8px; border-radius: 5px; background: #333; font-family: monospace;}
-        p { margin: 5px; color: #ccc; }
+        h1 { font-size: 60px; margin: 0; letter-spacing: 5px; background: -webkit-linear-gradient(#fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;}
+        .controls { margin-top: 30px; text-align: center; line-height: 1.8; color: #ccc; }
+        .key { border: 1px solid #666; padding: 2px 8px; border-radius: 4px; background: #222; font-weight: bold; color: #fff;}
     </style>
 </head>
 <body>
     <div id="crosshair"></div>
-    <div id="ui-layer">
-        <div>SCORE: <span id="score">0</span></div>
-        <div>HP: <span id="health">100</span>%</div>
+    
+    <div id="hud">
+        <div class="bar-wrap">
+            <div class="label">SHIELD</div>
+            <div class="bar-bg"><div id="shield-bar"></div></div>
+        </div>
+        <div class="bar-wrap">
+            <div class="label">HEALTH</div>
+            <div class="bar-bg"><div id="health-bar"></div></div>
+        </div>
+    </div>
+
+    <div id="ammo-box">
+        <span id="ammo-val">30</span>
+        <div id="ammo-sub">∞ ROUNDS</div>
+    </div>
+
+    <div id="msg-area">
+        <div id="kill-text" class="kill-msg">CHAMPION ELIMINATED</div>
     </div>
     
     <div id="blocker">
         <div id="instructions">
-            <h1>FPS : MAC VERSION</h1>
-            <p>画面をクリックしてスタート</p>
-            <br>
-            <p><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> で移動</p>
-            <p><span class="key">SPACE</span> でジャンプ</p>
-            <p>トラックパッド/マウス で視点移動</p>
-            <p>クリック で射撃</p>
+            <h1>PROTOCOL: CLIMB</h1>
+            <div class="controls">
+                <p>クリックして起動</p>
+                <p><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> 移動</p>
+                <p><span class="key">SPACE</span> ジャンプ / よじ登り</p>
+                <p><span class="key">R</span> リロード</p>
+                <p><span class="key">L-CLICK</span> 射撃</p>
+                <br>
+                <p style="color:#00a2ff; font-size:14px;">※岩の上にジャンプして登れます</p>
+            </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.150.0/build/three.module.js';
+        import { PointerLockControls } from 'https://unpkg.com/three@0.150.0/examples/jsm/controls/PointerLockControls.js';
 
-    <script>
-        // グローバル変数
+        // --- 設定値 ---
+        const PLAYER_HEIGHT = 2.0;
+        const PLAYER_SPEED = 15.0; // 少し速め
+        const JUMP_FORCE = 12.0;
+        const GRAVITY = 30.0;
+        
+        // --- グローバル変数 ---
         let camera, scene, renderer, controls;
-        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, canJump = false;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let canJump = false;
+        let velocity = new THREE.Vector3();
+        let direction = new THREE.Vector3();
         let prevTime = performance.now();
-        const velocity = new THREE.Vector3();
-        const direction = new THREE.Vector3();
+
+        // オブジェクト管理
+        const collidableObjects = []; // 岩や地面など（当たり判定用）
         const bullets = [];
         const enemies = [];
-        let score = 0;
-        let health = 100;
-        let lastEnemySpawn = 0;
+        const items = [];
+        
+        // ゲームステータス
+        let shield = 100, health = 100, ammo = 30;
+        let isReloading = false;
+        
+        // Raycaster（接地判定用）
+        const raycaster = new THREE.Raycaster();
+        const downVector = new THREE.Vector3(0, -1, 0);
 
-        const blocker = document.getElementById('blocker');
-        const instructions = document.getElementById('instructions');
-        const scoreElement = document.getElementById('score');
-        const healthElement = document.getElementById('health');
+        // UI要素
+        const shieldBar = document.getElementById('shield-bar');
+        const healthBar = document.getElementById('health-bar');
+        const ammoVal = document.getElementById('ammo-val');
+        const killText = document.getElementById('kill-text');
 
         init();
         animate();
@@ -105,77 +141,213 @@
         function init() {
             // シーン設定
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111111);
-            scene.fog = new THREE.Fog(0x111111, 0, 100);
+            scene.background = new THREE.Color(0x607080); // 曇り空
+            scene.fog = new THREE.FogExp2(0x607080, 0.008); // 距離による霧
 
             // カメラ
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.y = 10;
-
+            
             // ライト
-            const light = new THREE.HemisphereLight(0xffffff, 0x444444);
-            light.position.set(0, 20, 0);
-            scene.add(light);
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+            scene.add(hemiLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(50, 100, 50);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
 
-            // コントロール (r128のグローバル呼び出し)
-            controls = new THREE.PointerLockControls(camera, document.body);
-
-            blocker.addEventListener('click', function () {
-                controls.lock();
-            });
-
-            controls.addEventListener('lock', function () {
-                instructions.style.display = 'none';
-                blocker.style.display = 'none';
-            });
-
-            controls.addEventListener('unlock', function () {
-                blocker.style.display = 'flex';
-                instructions.style.display = '';
-                instructions.innerHTML = '<h1>PAUSED</h1><p>クリックして再開</p>';
-            });
-
+            // コントロール
+            controls = new PointerLockControls(camera, document.body);
+            const blocker = document.getElementById('blocker');
+            blocker.addEventListener('click', () => controls.lock());
+            controls.addEventListener('lock', () => { blocker.style.display = 'none'; });
+            controls.addEventListener('unlock', () => { blocker.style.display = 'flex'; });
             scene.add(controls.getObject());
 
-            // キーボード操作
-            const onKeyDown = function (event) {
-                switch (event.code) {
-                    case 'ArrowUp': case 'KeyW': moveForward = true; break;
-                    case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
-                    case 'ArrowDown': case 'KeyS': moveBackward = true; break;
-                    case 'ArrowRight': case 'KeyD': moveRight = true; break;
-                    case 'Space': if (canJump) velocity.y += 350; canJump = false; break;
+            // キー入力
+            const onKeyDown = (e) => {
+                switch (e.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyD': moveRight = true; break;
+                    case 'Space': 
+                        if (canJump) {
+                            velocity.y = JUMP_FORCE;
+                            canJump = false;
+                        }
+                        break;
+                    case 'KeyR': reload(); break;
                 }
             };
-            const onKeyUp = function (event) {
-                switch (event.code) {
-                    case 'ArrowUp': case 'KeyW': moveForward = false; break;
-                    case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
-                    case 'ArrowDown': case 'KeyS': moveBackward = false; break;
-                    case 'ArrowRight': case 'KeyD': moveRight = false; break;
+            const onKeyUp = (e) => {
+                switch (e.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyD': moveRight = false; break;
                 }
             };
-
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
-            document.addEventListener('mousedown', function() { if(controls.isLocked) shoot(); });
+            document.addEventListener('mousedown', (e) => { if(controls.isLocked) shoot(); });
 
-            // 床
-            const gridHelper = new THREE.GridHelper(2000, 200, 0x555555, 0x222222);
-            scene.add(gridHelper);
+            // --- マップ生成 ---
+            createEnvironment();
 
-            // レンダラー設定
-            renderer = new THREE.WebGLRenderer({ antialias: false }); // パフォーマンス優先でアンチエイリアスOFF
-            
-            // 【重要】MacBook ProのRetina対策
-            // 画素密度を制限しないと、超高解像度で描画してしまい重くなります。
-            // ここで強制的に「1」にすることで、Retinaでもサクサク動くようにします。
-            renderer.setPixelRatio(1); 
-            
+            // レンダラー
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
             document.body.appendChild(renderer.domElement);
 
             window.addEventListener('resize', onWindowResize);
+
+            // 敵の初期配置
+            for(let i=0; i<6; i++) spawnEnemy();
+        }
+
+        function createEnvironment() {
+            // 1. 地面
+            const groundGeo = new THREE.PlaneGeometry(1000, 1000);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.8 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            collidableObjects.push(ground); // 地面にも立てるように
+
+            // グリッド装飾
+            const grid = new THREE.GridHelper(1000, 100, 0x555555, 0x222222);
+            scene.add(grid);
+
+            // 2. 登れる岩（Icosahedronを使用）
+            const rockGeo = new THREE.DodecahedronGeometry(1, 0); // 角ばった岩
+            const rockMat = new THREE.MeshStandardMaterial({ 
+                color: 0x5a5a5a, 
+                flatShading: true, // ポリゴン感を出す
+                roughness: 1.0 
+            });
+
+            for (let i = 0; i < 60; i++) {
+                const rock = new THREE.Mesh(rockGeo, rockMat);
+                
+                // ランダムなスケール（平たい岩、高い岩）
+                const sx = 5 + Math.random() * 15;
+                const sy = 2 + Math.random() * 10;
+                const sz = 5 + Math.random() * 15;
+                rock.scale.set(sx, sy, sz);
+
+                // 配置（中心を開ける）
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 30 + Math.random() * 150;
+                rock.position.set(Math.cos(angle) * dist, sy * 0.4, Math.sin(angle) * dist);
+                
+                rock.castShadow = true;
+                rock.receiveShadow = true;
+                
+                scene.add(rock);
+                collidableObjects.push(rock); // ★重要：ここに追加することで乗れるようになる
+            }
+
+            // 3. 遠景の山脈（雰囲気用、当たり判定なし）
+            const mountainGeo = new THREE.ConeGeometry(100, 200, 4);
+            const mountainMat = new THREE.MeshBasicMaterial({ color: 0x2a2a3a, fog: true });
+            for(let i=0; i<10; i++) {
+                const mountain = new THREE.Mesh(mountainGeo, mountainMat);
+                const angle = (i / 10) * Math.PI * 2;
+                const dist = 400;
+                mountain.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+                mountain.scale.set(2 + Math.random(), 1 + Math.random(), 2 + Math.random());
+                scene.add(mountain);
+            }
+        }
+
+        function spawnEnemy() {
+            // 敵：ドローン風カプセル
+            const group = new THREE.Group();
+            
+            const bodyGeo = new THREE.CapsuleGeometry(0.8, 2, 4, 8);
+            const bodyMat = new THREE.MeshPhongMaterial({ color: 0xaa2222 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 1.5;
+            group.add(body);
+
+            // 目
+            const eyeGeo = new THREE.BoxGeometry(0.6, 0.2, 0.4);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const eye = new THREE.Mesh(eyeGeo, eyeMat);
+            eye.position.set(0, 2, 0.6);
+            group.add(eye);
+
+            // スポーン位置（プレイヤーから離れた場所）
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 40 + Math.random() * 60;
+            group.position.set(Math.cos(angle) * dist, 10, Math.sin(angle) * dist); // 空中から降ってくる
+            
+            scene.add(group);
+            
+            enemies.push({
+                mesh: group,
+                hp: 100,
+                velocity: new THREE.Vector3(0,0,0),
+                onGround: false,
+                lastShot: 0
+            });
+        }
+
+        function dropItem(position) {
+            // アイテム（緑の箱：シールド回復）
+            const geo = new THREE.BoxGeometry(1, 1, 1);
+            const mat = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+            const item = new THREE.Mesh(geo, mat);
+            item.position.copy(position);
+            item.position.y += 0.5;
+            scene.add(item);
+            items.push(item);
+        }
+
+        function shoot() {
+            if (isReloading || ammo <= 0) return;
+            ammo--;
+            ammoVal.innerText = ammo;
+
+            const geo = new THREE.SphereGeometry(0.15, 4, 4);
+            const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+            const bullet = new THREE.Mesh(geo, mat);
+            
+            bullet.position.copy(camera.position); // 目の位置から
+            
+            const vec = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            bullet.velocity = vec.multiplyScalar(40.0); // 高速弾
+            bullet.isPlayer = true;
+
+            scene.add(bullet);
+            bullets.push(bullet);
+        }
+
+        function reload() {
+            if(isReloading || ammo === 30) return;
+            isReloading = true;
+            ammoVal.style.color = "red";
+            ammoVal.innerText = "...";
+            setTimeout(() => {
+                ammo = 30;
+                isReloading = false;
+                ammoVal.style.color = "white";
+                ammoVal.innerText = ammo;
+            }, 1500);
+        }
+
+        function showKillMsg() {
+            killText.innerText = "ENEMY ELIMINATED";
+            killText.style.opacity = 1;
+            setTimeout(() => killText.style.opacity = 0, 1500);
+        }
+
+        function updateUI() {
+            shieldBar.style.width = shield + "%";
+            healthBar.style.width = health + "%";
         }
 
         function onWindowResize() {
@@ -184,112 +356,171 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function shoot() {
-            const geometry = new THREE.SphereGeometry(0.5, 8, 8);
-            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-            const bullet = new THREE.Mesh(geometry, material);
-
-            bullet.position.copy(camera.position);
-            
-            const vector = new THREE.Vector3(0, 0, -1);
-            vector.applyQuaternion(camera.quaternion);
-            bullet.velocity = vector.multiplyScalar(5.0); // 弾速アップ
-
-            scene.add(bullet);
-            bullets.push(bullet);
-        }
-
-        function spawnEnemy() {
-            const geometry = new THREE.BoxGeometry(3, 3, 3);
-            const material = new THREE.MeshNormalMaterial(); // シンプルで処理が軽いマテリアルに変更
-            const enemy = new THREE.Mesh(geometry, material);
-
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 40 + Math.random() * 40;
-            const playerPos = controls.getObject().position;
-
-            enemy.position.x = playerPos.x + Math.cos(angle) * radius;
-            enemy.position.z = playerPos.z + Math.sin(angle) * radius;
-            enemy.position.y = 1.5;
-
-            scene.add(enemy);
-            enemies.push(enemy);
-        }
-
         function animate() {
             requestAnimationFrame(animate);
 
             if (controls.isLocked) {
                 const time = performance.now();
                 const delta = (time - prevTime) / 1000;
+                prevTime = time;
 
+                // --- 1. プレイヤー物理演算（地形判定） ---
+                
+                // 減速
                 velocity.x -= velocity.x * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
-                velocity.y -= 9.8 * 100.0 * delta; 
+                velocity.y -= GRAVITY * delta; // 重力
 
+                // 入力に応じた加速
                 direction.z = Number(moveForward) - Number(moveBackward);
                 direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize(); 
+                direction.normalize();
 
-                if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
+                if (moveForward || moveBackward) velocity.z -= direction.z * 100.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 100.0 * delta;
 
+                // 水平移動適用
                 controls.moveRight(-velocity.x * delta);
                 controls.moveForward(-velocity.z * delta);
+
+                // --- 垂直移動と接地判定（クライミング） ---
                 controls.getObject().position.y += (velocity.y * delta);
 
-                if (controls.getObject().position.y < 10) {
+                // 足元から下にRayを飛ばして、岩や地面があるか調べる
+                raycaster.set(controls.getObject().position, downVector);
+                
+                // プレイヤーの高さ分だけチェック
+                const intersects = raycaster.intersectObjects(collidableObjects, false);
+                
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    // 距離が身長(PLAYER_HEIGHT)以下なら接地しているとみなす
+                    if (hit.distance < PLAYER_HEIGHT && velocity.y <= 0) {
+                        velocity.y = 0;
+                        // 岩の上に位置をスナップさせる（めり込み防止）
+                        controls.getObject().position.y = hit.point.y + PLAYER_HEIGHT;
+                        canJump = true;
+                    }
+                }
+
+                // 最低高度（落下防止）
+                if (controls.getObject().position.y < -10) {
                     velocity.y = 0;
                     controls.getObject().position.y = 10;
-                    canJump = true;
+                    health -= 10; updateUI();
                 }
 
-                if (time - lastEnemySpawn > 1000) { 
-                    spawnEnemy();
-                    lastEnemySpawn = time;
-                }
-
+                // --- 2. 弾丸処理 ---
                 for (let i = bullets.length - 1; i >= 0; i--) {
                     const b = bullets[i];
-                    b.position.add(b.velocity);
-                    
-                    if (b.position.distanceTo(controls.getObject().position) > 150) {
+                    b.position.add(b.velocity.clone().multiplyScalar(delta * 10)); // 速度調整
+
+                    if (b.position.distanceTo(camera.position) > 300) {
                         scene.remove(b); bullets.splice(i, 1); continue;
                     }
 
-                    for (let j = enemies.length - 1; j >= 0; j--) {
-                        const e = enemies[j];
-                        if (b.position.distanceTo(e.position) < 3) {
+                    // 当たり判定
+                    if (b.isPlayer) {
+                        // 対 敵
+                        for (let j = enemies.length - 1; j >= 0; j--) {
+                            const e = enemies[j];
+                            if (b.position.distanceTo(e.mesh.position) < 2) {
+                                scene.remove(b); bullets.splice(i, 1);
+                                e.hp -= 20;
+                                // ヒット演出（敵を赤く点滅）
+                                e.mesh.children[0].material.color.setHex(0xffffff);
+                                setTimeout(() => { if(e) e.mesh.children[0].material.color.setHex(0xaa2222); }, 50);
+
+                                if (e.hp <= 0) {
+                                    dropItem(e.mesh.position);
+                                    scene.remove(e.mesh);
+                                    enemies.splice(j, 1);
+                                    showKillMsg();
+                                    setTimeout(spawnEnemy, 3000); // リスポーン
+                                }
+                                break;
+                            }
+                        }
+                    } else {
+                        // 対 プレイヤー
+                        if (b.position.distanceTo(camera.position) < 1) {
                             scene.remove(b); bullets.splice(i, 1);
-                            scene.remove(e); enemies.splice(j, 1);
-                            score += 100; scoreElement.innerText = score;
-                            break;
+                            if (shield > 0) shield -= 10;
+                            else health -= 10;
+                            updateUI();
+                            // 被弾演出
+                            document.body.style.boxShadow = "inset 0 0 50px red";
+                            setTimeout(()=> document.body.style.boxShadow = "none", 100);
+
+                            if (health <= 0) {
+                                document.exitPointerLock();
+                                alert("GAME OVER");
+                                location.reload();
+                            }
                         }
                     }
                 }
 
-                const playerPos = controls.getObject().position;
-                for (let i = enemies.length - 1; i >= 0; i--) {
-                    const e = enemies[i];
-                    const dir = new THREE.Vector3().subVectors(playerPos, e.position).normalize();
-                    e.position.add(dir.multiplyScalar(0.25)); 
-                    e.lookAt(playerPos);
+                // --- 3. 敵AI処理 ---
+                for (const enemy of enemies) {
+                    // 重力
+                    enemy.velocity.y -= GRAVITY * delta;
+                    enemy.mesh.position.y += enemy.velocity.y * delta;
 
-                    if (e.position.distanceTo(playerPos) < 3) {
-                        scene.remove(e); enemies.splice(i, 1);
-                        health -= 10;
-                        healthElement.innerText = health;
-                        document.body.style.backgroundColor = 'red';
-                        setTimeout(() => document.body.style.backgroundColor = '#000', 100);
-                        if (health <= 0) {
-                            // MacのSafariはalertでポインターロックがバグりやすいためコンソールリロード
-                            location.reload(); 
+                    // 敵の接地判定（簡易版：地面or岩との距離）
+                    const eRay = new THREE.Raycaster(enemy.mesh.position, downVector);
+                    const eHits = eRay.intersectObjects(collidableObjects);
+                    if(eHits.length > 0 && eHits[0].distance < 1.5 && enemy.velocity.y <= 0) {
+                         enemy.velocity.y = 0;
+                         enemy.mesh.position.y = eHits[0].point.y + 1.5;
+                         enemy.onGround = true;
+                    }
+
+                    // プレイヤー追跡
+                    const dist = enemy.mesh.position.distanceTo(camera.position);
+                    if (dist < 100) {
+                        enemy.mesh.lookAt(camera.position);
+                        
+                        // 移動（近づく）
+                        if (dist > 15 && enemy.onGround) {
+                            const dir = new THREE.Vector3().subVectors(camera.position, enemy.mesh.position).normalize();
+                            enemy.mesh.position.add(dir.multiplyScalar(8.0 * delta));
+                        }
+
+                        // 射撃
+                        if (time - enemy.lastShot > 1000 + Math.random() * 1000) {
+                            const bGeo = new THREE.SphereGeometry(0.2, 4, 4);
+                            const bMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                            const b = new THREE.Mesh(bGeo, bMat);
+                            b.position.copy(enemy.mesh.position);
+                            b.position.y += 0.5;
+                            
+                            // 偏差射撃（少し乱す）
+                            const aim = new THREE.Vector3().subVectors(camera.position, b.position).normalize();
+                            aim.x += (Math.random()-0.5)*0.1;
+                            aim.y += (Math.random()-0.5)*0.1;
+                            b.velocity = aim.multiplyScalar(20.0);
+                            b.isPlayer = false;
+                            scene.add(b);
+                            bullets.push(b);
+                            enemy.lastShot = time;
                         }
                     }
                 }
-                prevTime = time;
+
+                // --- 4. アイテム取得 ---
+                for (let i = items.length - 1; i >= 0; i--) {
+                    const item = items[i];
+                    item.rotation.y += delta;
+                    if (item.position.distanceTo(camera.position) < 2) {
+                        shield = Math.min(100, shield + 50); // シールド回復
+                        updateUI();
+                        scene.remove(item);
+                        items.splice(i, 1);
+                    }
+                }
+
             } else {
-                // ポーズ中も時間は進める（デルタ計算のバグ防止）
                 prevTime = performance.now();
             }
 
