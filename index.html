@@ -2,487 +2,375 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>BROWSER LEGENDS: FIXED</title>
+    <title>APEX STYLE: FINAL VERSION</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background-color: #000; user-select: none; }
         
-        /* --- HUDレイヤー --- */
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        /* ロード画面 */
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: #ff3333; z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 30px; font-weight: bold; letter-spacing: 5px;
+        }
+
+        /* HUDレイヤー */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
 
         /* 照準 */
         #crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             display: flex; align-items: center; justify-content: center;
         }
-        .ch-dot { width: 4px; height: 4px; background: #fff; border-radius: 50%; box-shadow: 0 0 4px #fff; }
         .ch-circle { 
-            position: absolute; width: 20px; height: 20px; 
-            border: 2px solid rgba(255,255,255,0.5); border-radius: 50%; 
-            transition: width 0.1s, height 0.1s;
+            width: 20px; height: 20px; 
+            border: 2px solid rgba(255,255,255,0.8); border-radius: 50%; 
+            transition: all 0.1s;
         }
 
-        /* 左下：ヘルス＆シールド (APEX風) */
+        /* 左下：ステータス */
         #player-status {
             position: absolute; bottom: 30px; left: 40px;
             display: flex; flex-direction: column; gap: 5px;
             transform: skewX(-15deg);
         }
-        .bar-row { display: flex; align-items: center; gap: 5px; }
         .bar-container {
             width: 250px; height: 14px; background: rgba(20, 20, 30, 0.6);
             border: 1px solid #555; position: relative;
         }
         #shield-fill { width: 100%; height: 100%; background: #00bfff; box-shadow: 0 0 10px #00bfff; transition: width 0.1s; }
         #health-fill { width: 100%; height: 100%; background: #fff; transition: width 0.1s; }
-        .player-name { color: #fff; font-size: 18px; font-weight: 800; transform: skewX(15deg); margin-bottom: 5px; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
 
-        /* 右下：武器＆弾薬 */
+        /* 右下：武器 */
         #weapon-status {
             position: absolute; bottom: 30px; right: 40px;
             text-align: right; color: white; transform: skewX(-15deg);
         }
-        #ammo-count { font-size: 48px; font-weight: 900; line-height: 1; }
-        #weapon-name { font-size: 16px; color: #ff9900; font-weight: bold; letter-spacing: 2px; }
-        #mag-bar { width: 150px; height: 6px; background: #333; margin-left: auto; margin-top: 5px; }
-        #mag-fill { width: 100%; height: 100%; background: #ff9900; }
+        #ammo-count { font-size: 50px; font-weight: 900; line-height: 1; text-shadow: 0 0 10px #000; }
+        #weapon-name { font-size: 16px; color: #ff9900; font-weight: bold; }
 
-        /* ダメージ表示 */
+        /* ダメージ数字 */
         #damage-overlay { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events: none; overflow: hidden;}
         .dmg-num {
             position: absolute; font-family: 'Arial Black', sans-serif; font-weight: 900;
-            font-size: 24px; pointer-events: none;
-            text-shadow: 2px 2px 0 #000;
-            animation: floatUp 0.8s ease-out forwards;
+            font-size: 24px; text-shadow: 2px 2px 0 #000;
+            animation: floatUp 0.6s ease-out forwards;
         }
-        @keyframes floatUp {
-            0% { opacity: 1; transform: translateY(0) scale(1); }
-            100% { opacity: 0; transform: translateY(-50px) scale(1.2); }
-        }
+        @keyframes floatUp { to { opacity: 0; transform: translateY(-50px) scale(1.1); } }
         .dmg-shield { color: #00bfff; -webkit-text-stroke: 1px #005f7f; }
         .dmg-health { color: #ffffff; -webkit-text-stroke: 1px #555; }
-        .dmg-head { color: #ffcc00; font-size: 32px; -webkit-text-stroke: 1px #884400; z-index: 100; }
-
-        /* 通知エリア */
-        #kill-feed {
-            position: absolute; top: 100px; right: 20px;
-            display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
-        }
-        .feed-item {
-            background: rgba(0,0,0,0.7); color: white; padding: 5px 10px;
-            border-left: 4px solid #ff3333; font-size: 14px;
-            transform: skewX(-15deg);
-        }
 
         /* スタート画面 */
         #blocker {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(10,10,15,0.95);
+            background: rgba(10,10,15,0.9);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; z-index: 999; cursor: pointer;
+            color: white; z-index: 1000; cursor: pointer; display: none;
         }
-        h1 { font-size: 60px; margin: 0; font-style: italic; letter-spacing: -2px; text-shadow: 0 0 20px #ff3333; text-align: center; }
-        #start-btn {
-            margin-top: 30px; padding: 20px 60px; font-size: 28px; font-weight: bold;
-            background: #ff3333; color: white; border: 2px solid #fff; transform: skewX(-15deg);
-            cursor: pointer; transition: 0.2s; box-shadow: 0 0 20px rgba(255, 50, 50, 0.5);
-        }
-        #start-btn:hover { background: #ff6666; transform: skewX(-15deg) scale(1.05); }
-        .controls { margin-top: 30px; text-align: center; color: #aaa; font-size: 14px; line-height: 1.6; }
-        .key { border: 1px solid #666; padding: 2px 6px; background: #222; font-weight: bold; color: #fff; margin: 0 2px; }
+        h1 { font-size: 60px; margin: 0; font-style: italic; text-shadow: 0 0 20px #ff3333; }
+        #start-msg { font-size: 24px; margin-top: 20px; background: #ff3333; padding: 10px 30px; transform: skewX(-15deg); }
     </style>
 </head>
 <body>
+    <div id="loading-screen">LOADING RESOURCES...</div>
+
     <div id="ui-layer">
-        <div id="crosshair">
-            <div class="ch-dot"></div>
-            <div class="ch-circle" id="ch-circle"></div>
-        </div>
-
+        <div id="crosshair"><div class="ch-circle" id="ch-circle"></div></div>
         <div id="player-status">
-            <div class="player-name">LEGEND</div>
-            <div class="bar-row">
-                <div class="bar-container"><div id="shield-fill"></div></div>
-            </div>
-            <div class="bar-row">
-                <div class="bar-container"><div id="health-fill"></div></div>
-            </div>
+            <div style="color:#fff; font-weight:bold; font-size:18px;">LEGEND</div>
+            <div class="bar-container"><div id="shield-fill"></div></div>
+            <div class="bar-container"><div id="health-fill"></div></div>
         </div>
-
         <div id="weapon-status">
-            <div id="weapon-name">R-301 CARBINE</div>
+            <div id="weapon-name">R-301</div>
             <div id="ammo-count">28</div>
-            <div id="mag-bar"><div id="mag-fill"></div></div>
         </div>
-        <div id="kill-feed"></div>
     </div>
     <div id="damage-overlay"></div>
 
     <div id="blocker">
-        <h1>BROWSER LEGENDS</h1>
-        <div id="start-btn">CLICK TO START</div>
-        <div class="controls">
-            <p><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> 移動 | <span class="key">SHIFT</span> ダッシュ</p>
-            <p><span class="key">C</span> スライディング | <span class="key">SPACE</span> ジャンプ</p>
-            <p><span class="key">R</span> リロード | <span class="key">左クリック</span> 射撃</p>
-        </div>
+        <h1>BATTLE READY</h1>
+        <div id="start-msg">CLICK TO START</div>
+        <p style="margin-top:20px; color:#aaa;">WASD:移動 | SHIFT:走る | C:スライディング | SPACE:ジャンプ | R:リロード | クリック:撃つ</p>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+    <script src="https://unpkg.com/three@0.126.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.126.0/examples/js/controls/PointerLockControls.js"></script>
 
     <script>
-        // --- 設定 (APEXフィール) ---
-        const MOVE_SPEED = 10;
-        const SPRINT_SPEED = 18;
-        const SLIDE_SPEED_INIT = 30;
-        const JUMP_FORCE = 15;
-        const GRAVITY = 35;
-        const PLAYER_HEIGHT = 1.7;
-        const CROUCH_HEIGHT = 0.9;
-        
-        const MAG_SIZE = 28;
-        const FIRE_RATE = 80; // 連射速度ms
-        const RECOIL_AMOUNT = 0.002;
+        // ロードチェック
+        window.addEventListener('load', () => {
+            if (typeof THREE === 'undefined') {
+                alert("エラー: ゲームエンジンを読み込めませんでした。インターネット接続を確認してください。");
+                return;
+            }
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('blocker').style.display = 'flex';
+            init();
+            animate();
+        });
 
-        // グローバル変数
+        // --- 設定 ---
+        const MOVE_SPEED = 12;
+        const SPRINT_SPEED = 20;
+        const SLIDE_SPEED = 35;
+        const MAG_SIZE = 28;
+
         let camera, scene, renderer, controls;
         let prevTime = performance.now();
         let velocity = new THREE.Vector3();
         let direction = new THREE.Vector3();
         
-        let moveForward=false, moveBackward=false, moveLeft=false, moveRight=false;
-        let isSprinting=false, isCrouching=false, canJump=false, isSliding=false;
-        let slideVelocity = 0;
-        let isFiring = false;
+        let moveF=false, moveB=false, moveL=false, moveR=false;
+        let isSprint=false, isCrouch=false, canJump=false, isSlide=false;
+        let slideVel = 0;
 
-        // ゲームオブジェクト
-        const enemies = [];
-        const colliders = [];
-
-        // ステータス
-        let hp = 100, shield = 100;
         let ammo = MAG_SIZE;
+        let shield = 100, hp = 100;
         let isReloading = false;
-        let lastShotTime = 0;
-        let currentRecoil = 0;
-
-        // UI取得
-        const uiShield = document.getElementById('shield-fill');
-        const uiHealth = document.getElementById('health-fill');
-        const uiAmmo = document.getElementById('ammo-count');
-        const uiMag = document.getElementById('mag-fill');
-        const damageOverlay = document.getElementById('damage-overlay');
-        const crosshairCircle = document.getElementById('ch-circle');
-        const blocker = document.getElementById('blocker');
-        const startBtn = document.getElementById('start-btn');
-
-        init();
-        animate();
+        
+        const enemies = [];
+        const bullets = [];
+        const colliders = []; // 地面や壁
 
         function init() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB);
-            scene.fog = new THREE.Fog(0x87CEEB, 0, 150);
+            scene.fog = new THREE.Fog(0x87CEEB, 0, 100);
 
-            camera = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.position.y = PLAYER_HEIGHT;
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.y = 1.7;
 
-            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
-            scene.add(hemiLight);
+            // ライト
+            scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.8));
             const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
             dirLight.position.set(50, 100, 50);
-            dirLight.castShadow = true;
             scene.add(dirLight);
 
-            // コントロール設定（r128のグローバル版）
+            // コントロール
             controls = new THREE.PointerLockControls(camera, document.body);
-
-            // スタートボタンの処理
-            startBtn.addEventListener('click', function() {
-                controls.lock();
-            });
-            // ブロッカー自体をクリックしてもスタートできるようにする（保険）
-            blocker.addEventListener('click', function(e) {
-                if(e.target !== startBtn) controls.lock();
-            });
-
-            controls.addEventListener('lock', function() {
+            const blocker = document.getElementById('blocker');
+            blocker.addEventListener('click', () => controls.lock());
+            
+            controls.addEventListener('lock', () => {
                 blocker.style.display = 'none';
+                document.getElementById('ui-layer').style.display = 'block';
             });
-            controls.addEventListener('unlock', function() {
+            controls.addEventListener('unlock', () => {
                 blocker.style.display = 'flex';
-                document.querySelector('h1').innerText = "PAUSED";
-                startBtn.innerText = "RESUME";
+                document.getElementById('ui-layer').style.display = 'none';
+                document.getElementById('start-msg').innerText = "CLICK TO RESUME";
             });
-
             scene.add(controls.getObject());
 
-            // イベントリスナー
-            document.addEventListener('keydown', onKeyDown);
-            document.addEventListener('keyup', onKeyUp);
-            document.addEventListener('mousedown', (e) => { if(controls.isLocked && e.button===0) isFiring = true; });
-            document.addEventListener('mouseup', () => isFiring = false);
-            window.addEventListener('resize', onWindowResize);
-
+            // マップ作成
             createMap();
+            // 敵作成
+            for(let i=0; i<4; i++) spawnEnemy();
 
-            // レンダラー (Retina対応で重くならないようPixelRatioは1に固定)
+            // レンダラー
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(1); 
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            // 敵生成
-            for(let i=0; i<4; i++) spawnDummy(i);
+            // イベント
+            document.addEventListener('keydown', onKey);
+            document.addEventListener('keyup', onKey);
+            document.addEventListener('mousedown', (e) => { if(controls.isLocked && e.button===0) shoot(); });
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth/window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
         }
 
         function createMap() {
             // 地面
-            const groundGeo = new THREE.PlaneGeometry(1000, 1000);
-            const groundMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.9 });
-            const ground = new THREE.Mesh(groundGeo, groundMat);
-            ground.rotation.x = -Math.PI / 2;
-            ground.receiveShadow = true;
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(500, 500),
+                new THREE.MeshPhongMaterial({ color: 0xccaa88 })
+            );
+            ground.rotation.x = -Math.PI/2;
             scene.add(ground);
             colliders.push(ground);
 
-            // 壁と遮蔽物
+            // 岩/遮蔽物
             const boxGeo = new THREE.BoxGeometry(1,1,1);
-            const boxMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
-            
+            const boxMat = new THREE.MeshPhongMaterial({ color: 0x666666 });
             for(let i=0; i<30; i++) {
-                const wall = new THREE.Mesh(boxGeo, boxMat);
-                // ランダム配置
-                const x = (Math.random()-0.5)*150;
-                const z = (Math.random()-0.5)*150 - 20;
-                const sy = 4 + Math.random()*6;
-                wall.position.set(x, sy/2, z);
-                wall.scale.set(5+Math.random()*10, sy, 5+Math.random()*10);
-                wall.castShadow = true;
-                scene.add(wall);
-                colliders.push(wall);
+                const box = new THREE.Mesh(boxGeo, boxMat);
+                box.position.set((Math.random()-0.5)*100, 2, (Math.random()-0.5)*100 - 20);
+                box.scale.set(5+Math.random()*10, 4+Math.random()*6, 5+Math.random()*10);
+                scene.add(box);
+                colliders.push(box);
             }
-            
-            // スロープ（滑り台）
-            const slope = new THREE.Mesh(new THREE.PlaneGeometry(20, 60), new THREE.MeshStandardMaterial({color:0x888888, side:THREE.DoubleSide}));
-            slope.rotation.x = -Math.PI/2 - 0.3; 
-            slope.position.set(-30, 8, -40);
-            scene.add(slope);
-            colliders.push(slope);
         }
 
-        function spawnDummy(index) {
-            const group = new THREE.Group();
-            const mat = new THREE.MeshPhongMaterial({ color: 0xcc2222 });
-            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.8), mat);
+        function spawnEnemy() {
+            const bot = new THREE.Group();
+            // 赤い体
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.8), new THREE.MeshPhongMaterial({color:0xaa2222}));
             body.position.y = 0.9;
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshPhongMaterial({ color: 0x550000 }));
+            bot.add(body);
+            // 頭
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshPhongMaterial({color:0x550000}));
             head.position.y = 2.0;
+            bot.add(head);
+
+            bot.position.set((Math.random()-0.5)*60, 0, (Math.random()-0.5)*40 - 30);
+            scene.add(bot);
             
-            group.add(body);
-            group.add(head);
-            group.position.set((Math.random()-0.5)*50, 0, (Math.random()-0.5)*50 - 30);
-            
-            scene.add(group);
-            enemies.push({ mesh: group, hp: 100, shield: 50, moveDir: 1, lastMove: 0, isDead: false });
+            enemies.push({ mesh: bot, hp: 100, shield: 50, dir: 1, lastMove: 0 });
         }
 
-        function onKeyDown(e) {
+        function onKey(e) {
+            const isDown = e.type === 'keydown';
             switch(e.code) {
-                case 'KeyW': moveForward = true; break;
-                case 'KeyA': moveLeft = true; break;
-                case 'KeyS': moveBackward = true; break;
-                case 'KeyD': moveRight = true; break;
-                case 'Space': if(canJump) { velocity.y = JUMP_FORCE; canJump = false; } break;
-                case 'ShiftLeft': isSprinting = true; break;
+                case 'KeyW': moveF = isDown; break;
+                case 'KeyA': moveL = isDown; break;
+                case 'KeyS': moveB = isDown; break;
+                case 'KeyD': moveR = isDown; break;
+                case 'ShiftLeft': isSprint = isDown; break;
+                case 'KeyR': if(isDown) reload(); break;
+                case 'Space': if(isDown && canJump) { velocity.y = 15; canJump = false; } break;
                 case 'KeyC': 
-                    if(!isCrouching) startSlide();
-                    isCrouching = true; 
-                    break;
-                case 'KeyR': reload(); break;
-            }
-        }
-        function onKeyUp(e) {
-            switch(e.code) {
-                case 'KeyW': moveForward = false; break;
-                case 'KeyA': moveLeft = false; break;
-                case 'KeyS': moveBackward = false; break;
-                case 'KeyD': moveRight = false; break;
-                case 'ShiftLeft': isSprinting = false; break;
-                case 'KeyC': 
-                    isCrouching = false; isSliding = false; 
-                    camera.position.y = PLAYER_HEIGHT; 
+                    if(isDown) {
+                        if(isSprint && moveF && !isSlide) { isSlide = true; slideVel = SLIDE_SPEED; }
+                        isCrouch = true; camera.position.y = 0.9;
+                    } else {
+                        isCrouch = false; isSlide = false; camera.position.y = 1.7;
+                    }
                     break;
             }
         }
 
-        function startSlide() {
-            if(moveForward && isSprinting) {
-                isSliding = true;
-                slideVelocity = SLIDE_SPEED_INIT;
-                camera.position.y = CROUCH_HEIGHT;
-            } else {
-                camera.position.y = CROUCH_HEIGHT;
-            }
-        }
+        function shoot() {
+            if(isReloading || ammo <= 0) { reload(); return; }
+            ammo--;
+            updateHUD();
 
-        function reload() {
-            if(isReloading || ammo === MAG_SIZE) return;
-            isReloading = true;
-            uiAmmo.style.color = "#aaa";
-            document.getElementById('weapon-name').innerText = "RELOADING...";
-            setTimeout(() => {
-                ammo = MAG_SIZE; isReloading = false; uiAmmo.style.color = "#fff";
-                document.getElementById('weapon-name').innerText = "R-301 CARBINE";
-                updateUI();
-            }, 1500);
-        }
-
-        function createDamageText(pos, amount, type) {
-            const vec = pos.clone().project(camera);
-            const x = (vec.x * .5 + .5) * window.innerWidth;
-            const y = (-(vec.y * .5) + .5) * window.innerHeight;
-            if(vec.z > 1.0) return;
-
-            const el = document.createElement('div');
-            el.innerText = amount;
-            el.className = 'dmg-num';
-            if(type === 'shield') el.classList.add('dmg-shield');
-            else if(type === 'head') el.classList.add('dmg-head');
-            else el.classList.add('dmg-health');
-
-            el.style.left = x + 'px'; el.style.top = y + 'px';
-            damageOverlay.appendChild(el);
-            setTimeout(() => el.remove(), 800);
-        }
-
-        function fireWeapon() {
-            if(ammo <= 0) { reload(); return; }
-            ammo--; updateUI();
-
-            crosshairCircle.style.width = "40px"; crosshairCircle.style.height = "40px";
-            setTimeout(() => { crosshairCircle.style.width = "20px"; crosshairCircle.style.height = "20px"; }, 100);
+            // 弾（レイキャスト）
+            const ray = new THREE.Raycaster();
+            ray.setFromCamera(new THREE.Vector2(), camera);
             
-            // リコイル
-            controls.getObject().rotation.x += RECOIL_AMOUNT * 2;
+            // クロスヘア跳ね上がり演出
+            const ch = document.getElementById('ch-circle');
+            ch.style.width = '30px'; ch.style.height = '30px';
+            setTimeout(()=> { ch.style.width='20px'; ch.style.height='20px'; }, 100);
 
-            // レイキャスト
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera( new THREE.Vector2(), camera );
+            // 判定
+            const hits = ray.intersectObjects(scene.children, true);
+            let hitEnemy = false;
             
-            // 弾の軌跡
-            const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
-            const bullet = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 3), bulletMat);
-            bullet.position.copy(camera.position);
-            bullet.position.y -= 0.2;
-            bullet.quaternion.copy(camera.quaternion);
-            bullet.translateZ(-2);
-            scene.add(bullet);
-            setTimeout(()=>scene.remove(bullet), 50);
-
-            const intersects = raycaster.intersectObjects(scene.children, true);
-            for(let hit of intersects) {
+            for(let hit of hits) {
+                // 親を探して敵判定
                 let target = hit.object;
                 while(target.parent && target.parent.type !== 'Scene') target = target.parent;
                 
-                const enemy = enemies.find(e => e.mesh === target);
-                if(enemy && !enemy.isDead) {
-                    const isHead = hit.point.y > enemy.mesh.position.y + 1.5;
+                const en = enemies.find(e => e.mesh === target);
+                if(en && en.hp > 0) {
+                    const isHead = hit.point.y > en.mesh.position.y + 1.6;
                     let dmg = isHead ? 22 : 11;
                     let type = 'health';
-
-                    if(enemy.shield > 0) {
-                        enemy.shield -= dmg; type = 'shield';
-                        if(enemy.shield < 0) { enemy.hp += enemy.shield; enemy.shield = 0; createDamageText(hit.point, "CRACKED", 'shield'); }
+                    
+                    if(en.shield > 0) {
+                        en.shield -= dmg; type = 'shield';
+                        if(en.shield < 0) { en.hp += en.shield; en.shield = 0; dmgText(hit.point, "割れた!", "shield"); }
                     } else {
-                        enemy.hp -= dmg; type = isHead ? 'head' : 'health';
+                        en.hp -= dmg; type = isHead ? 'head' : 'health';
                     }
-                    createDamageText(hit.point, dmg, type);
+                    dmgText(hit.point, dmg, type);
 
-                    if(enemy.hp <= 0) {
-                        enemy.isDead = true; enemy.mesh.visible = false;
-                        const log = document.createElement('div');
-                        log.className = 'feed-item'; log.innerText = "YOU 🔫 DUMMY";
-                        document.getElementById('kill-feed').appendChild(log);
-                        setTimeout(()=>log.remove(), 3000);
-                        setTimeout(() => { enemy.hp = 100; enemy.shield = 50; enemy.isDead = false; enemy.mesh.visible = true; }, 5000);
+                    if(en.hp <= 0) {
+                        en.mesh.visible = false;
+                        setTimeout(() => { en.hp=100; en.shield=50; en.mesh.visible=true; }, 3000); // リスポーン
                     }
-                    break;
+                    hitEnemy = true;
+                    break; 
                 }
-                if(hit.distance < 100 && !enemy) break;
+                if(!hitEnemy && hit.distance < 100) break; // 壁に当たった
             }
         }
 
-        function updateUI() {
-            uiShield.style.width = shield + "%";
-            uiHealth.style.width = hp + "%";
-            uiAmmo.innerText = ammo;
-            uiMag.style.width = (ammo / MAG_SIZE * 100) + "%";
+        function dmgText(pos, txt, type) {
+            const div = document.createElement('div');
+            div.className = `dmg-num dmg-${type}`;
+            div.innerText = txt;
+            
+            // 3D位置を画面位置へ
+            const vec = pos.clone().project(camera);
+            if(vec.z > 1) return;
+            const x = (vec.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-(vec.y * 0.5) + 0.5) * window.innerHeight;
+            
+            div.style.left = x + 'px'; div.style.top = y + 'px';
+            document.getElementById('damage-overlay').appendChild(div);
+            setTimeout(() => div.remove(), 600);
         }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        function reload() {
+            if(isReloading) return;
+            isReloading = true;
+            document.getElementById('weapon-name').innerText = "RELOADING...";
+            setTimeout(() => {
+                ammo = MAG_SIZE; isReloading = false;
+                document.getElementById('weapon-name').innerText = "R-301";
+                updateHUD();
+            }, 1500);
+        }
+
+        function updateHUD() {
+            document.getElementById('ammo-count').innerText = ammo;
+            document.getElementById('shield-fill').style.width = shield + "%";
+            document.getElementById('health-fill').style.width = hp + "%";
         }
 
         function animate() {
             requestAnimationFrame(animate);
+            if(!controls.isLocked) { prevTime = performance.now(); return; }
 
-            if(controls.isLocked) {
-                const time = performance.now();
-                const delta = (time - prevTime) / 1000;
+            const time = performance.now();
+            const delta = (time - prevTime) / 1000;
+            prevTime = time;
 
-                velocity.x -= velocity.x * 10.0 * delta;
-                velocity.z -= velocity.z * 10.0 * delta;
-                velocity.y -= GRAVITY * delta;
+            // 物理演算(簡易)
+            velocity.x -= velocity.x * 10 * delta;
+            velocity.z -= velocity.z * 10 * delta;
+            velocity.y -= 30 * delta; // 重力
 
-                direction.z = Number(moveForward) - Number(moveBackward);
-                direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize();
+            direction.z = Number(moveF) - Number(moveB);
+            direction.x = Number(moveR) - Number(moveL);
+            direction.normalize();
 
-                let speed = MOVE_SPEED;
-                if(isSliding) {
-                    speed = slideVelocity; slideVelocity -= 15 * delta;
-                    if(slideVelocity < 5) isSliding = false;
-                } else if(isSprinting) speed = SPRINT_SPEED;
-                else if(isCrouching) speed = MOVE_SPEED * 0.5;
-                if(!canJump) speed *= 0.3;
+            let spd = isSprint ? SPRINT_SPEED : MOVE_SPEED;
+            if(isSlide) {
+                spd = slideVel; slideVel -= 20 * delta;
+                if(slideVel < 5) isSlide = false;
+            } else if(isCrouch) spd = MOVE_SPEED * 0.5;
 
-                if (moveForward || moveBackward) velocity.z -= direction.z * speed * 10.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * speed * 10.0 * delta;
+            if(moveF || moveB) velocity.z -= direction.z * spd * 10 * delta;
+            if(moveL || moveR) velocity.x -= direction.x * spd * 10 * delta;
 
-                controls.moveRight(-velocity.x * delta);
-                controls.moveForward(-velocity.z * delta);
-                controls.getObject().position.y += (velocity.y * delta);
+            controls.moveRight(-velocity.x * delta);
+            controls.moveForward(-velocity.z * delta);
+            controls.getObject().position.y += velocity.y * delta;
 
-                let groundY = 0;
-                let currentHeight = isCrouching ? CROUCH_HEIGHT : PLAYER_HEIGHT;
-                if (controls.getObject().position.y < currentHeight) {
-                    velocity.y = 0;
-                    controls.getObject().position.y = currentHeight;
-                    canJump = true;
-                }
-
-                if(isFiring && !isReloading && time - lastShotTime > FIRE_RATE) {
-                    fireWeapon(); lastShotTime = time;
-                }
-
-                // 敵のレレレ動き
-                for(const enemy of enemies) {
-                    if(enemy.isDead) continue;
-                    enemy.mesh.lookAt(controls.getObject().position.x, enemy.mesh.position.y, controls.getObject().position.z);
-                    if(time - enemy.lastMove > 1000 + Math.random()*2000) {
-                        enemy.moveDir *= -1; enemy.lastMove = time;
-                    }
-                    enemy.mesh.translateX(enemy.moveDir * 3.0 * delta);
-                }
-
-                prevTime = time;
-            } else {
-                prevTime = performance.now();
+            // 接地判定
+            const h = isCrouch ? 0.9 : 1.7;
+            if(controls.getObject().position.y < h) {
+                velocity.y = 0;
+                controls.getObject().position.y = h;
+                canJump = true;
             }
+
+            // 敵の動き
+            enemies.forEach(en => {
+                if(en.hp <= 0) return;
+                en.mesh.lookAt(camera.position.x, en.mesh.position.y, camera.position.z);
+                if(time - en.lastMove > 1500) { en.dir *= -1; en.lastMove = time; }
+                en.mesh.translateX(en.dir * 4 * delta);
+            });
+
             renderer.render(scene, camera);
         }
     </script>
