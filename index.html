@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable＝no">
-    <title>Nebby Climb: Sticky Hands</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Nebby Climb: New Game</title>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background: #222; touch-action: none; font-family: sans-serif; }
         #game-canvas { display: block; width: 100vw; height: 100vh; }
@@ -13,9 +13,9 @@
             pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
         #title-screen {
-            background: rgba(0,0,0,0.7); inset: 0; position: absolute; pointer-events: auto;
+            background: rgba(0,0,0,0.8); inset: 0; position: absolute; pointer-events: auto;
             display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;
-            text-align: center;
+            text-align: center; z-index: 100;
         }
         h1 { font-size: 50px; color: #00ff66; text-shadow: 0 0 10px #00ff66; margin: 0; letter-spacing: 5px; }
         p { font-size: 18px; color: #ccc; margin-bottom: 30px; line-height: 1.6; }
@@ -28,7 +28,7 @@
 
         #height-meter {
             position: absolute; top: 20px; right: 20px; color: white; font-size: 24px; font-weight: bold;
-            text-shadow: 2px 2px 0 #000;
+            text-shadow: 2px 2px 0 #000; pointer-events: none;
         }
     </style>
 </head>
@@ -39,14 +39,14 @@
         <div id="title-screen">
             <h1>NEBBY CLIMB</h1>
             <p>【操作方法】<br>タップ：手を飛ばす<br>長押し：引っ張る（縮む）<br>離す：手を離す<br><br>振り子を使って上を目指せ！</p>
-            <button id="start-btn">START CLIMBING</button>
+            <button id="start-btn">START GAME</button>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 
     <script>
-        // --- 音響システム (シンセサイザー) ---
+        // --- 音響システム ---
         const Sfx = {
             ctx: null,
             init: function() {
@@ -60,14 +60,12 @@
                 const gain = this.ctx.createGain();
                 
                 if(type === 'shoot') {
-                    // シュッ（発射）
                     osc.type = 'triangle';
                     osc.frequency.setValueAtTime(600, t);
                     osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
                     gain.gain.setValueAtTime(0.3, t);
                     gain.gain.linearRampToValueAtTime(0, t + 0.15);
                 } else if(type === 'stick') {
-                    // ペタッ（吸着）
                     osc.type = 'square';
                     osc.frequency.setValueAtTime(200, t);
                     osc.frequency.exponentialRampToValueAtTime(50, t + 0.1);
@@ -89,8 +87,6 @@
               Bodies = Matter.Bodies,
               Composite = Matter.Composite,
               Constraint = Matter.Constraint,
-              Mouse = Matter.Mouse,
-              MouseConstraint = Matter.MouseConstraint,
               Events = Matter.Events,
               Vector = Matter.Vector,
               Body = Matter.Body;
@@ -98,14 +94,14 @@
         let engine, render, runner;
         let player, hand, armConstraint;
         let isDragging = false;
-        let handState = 'IDLE'; // IDLE, FIRING, STUCK
+        let handState = 'IDLE'; 
         let stickConstraint = null;
 
-        // カテゴリ（衝突判定用）
         const CAT_PLAYER = 0x0001, CAT_WALL = 0x0002, CAT_HAND = 0x0004;
 
         window.onload = () => {
-            document.getElementById('start-btn').onclick = () => {
+            const btn = document.getElementById('start-btn');
+            btn.onclick = () => {
                 Sfx.init();
                 document.getElementById('title-screen').style.display = 'none';
                 initGame();
@@ -113,11 +109,11 @@
         };
 
         function initGame() {
-            // エンジン初期化
-            engine = Engine.create();
-            engine.world.gravity.y = 1.2; // 少し重力を強めに
+            if(engine) return; // 二重起動防止
 
-            // レンダラー作成
+            engine = Engine.create();
+            engine.world.gravity.y = 1.2;
+
             render = Render.create({
                 element: document.body,
                 engine: engine,
@@ -129,69 +125,54 @@
                 }
             });
 
-            // プレイヤー（壺おじさん）
+            // プレイヤー
             player = Bodies.circle(0, 0, 20, {
-                density: 0.005, // 重さ
+                density: 0.005,
                 frictionAir: 0.01,
-                restitution: 0.2, // 跳ね返り
+                restitution: 0.2,
                 collisionFilter: { category: CAT_PLAYER, mask: CAT_WALL },
                 render: { fillStyle: '#ffcc00', strokeStyle: '#fff', lineWidth: 2 }
             });
 
-            // 手（最初はプレイヤーの位置に隠す）
+            // 手
             hand = Bodies.circle(0, 0, 8, {
-                isSensor: true, // 物理衝突は検知するが跳ね返らない
+                isSensor: true,
                 density: 0.001,
                 collisionFilter: { category: CAT_HAND, mask: CAT_WALL },
                 render: { fillStyle: '#00ff66' }
             });
 
-            // マップ生成
             createLevel();
-
-            // ワールドに追加
             Composite.add(engine.world, [player, hand]);
 
-            // 入力処理
             const canvas = render.canvas;
             
-            // タッチ/クリックイベント
+            // 操作イベント (PC & スマホ両対応)
             canvas.addEventListener('pointerdown', (e) => {
                 isDragging = true;
                 handleInput(e);
             });
-            
-            canvas.addEventListener('pointermove', (e) => {
-                if(isDragging && handState === 'STUCK') {
-                    // 引っ張ってる最中の処理（特になし、updateループで処理）
-                }
-            });
-            
             canvas.addEventListener('pointerup', () => {
                 isDragging = false;
                 releaseHand();
             });
 
-            // 衝突判定（手が壁に触れたら）
             Events.on(engine, 'collisionStart', (event) => {
                 const pairs = event.pairs;
                 for (let i = 0; i < pairs.length; i++) {
                     const pair = pairs[i];
-                    // 手と壁の接触
                     if ((pair.bodyA === hand || pair.bodyB === hand) && handState === 'FIRING') {
                         const wall = pair.bodyA === hand ? pair.bodyB : pair.bodyA;
-                        stickHand(wall, pair.collision.supports[0]); // 接触点に固定
+                        stickHand(wall, pair.collision.supports[0]);
                     }
                 }
             });
 
-            // ゲームループ前処理
             Events.on(engine, 'beforeUpdate', () => {
                 updateGameLogic();
                 updateCamera();
             });
             
-            // 描画ループ後処理（紐の描画など）
             Events.on(render, 'afterRender', () => {
                 drawArm();
             });
@@ -203,222 +184,139 @@
 
         function createLevel() {
             const walls = [];
-            const w = window.innerWidth;
             
-            // スタート地点の床
+            // 床
             walls.push(Bodies.rectangle(0, 200, 600, 50, { isStatic: true, render: { fillStyle: '#555' } }));
 
-            // アスレチック生成
+            // ステージ生成
             let y = 0;
-            const gap = 150; // 高さの間隔
-
-            for(let i=0; i<50; i++) { // 50階層
-                y -= gap + Math.random() * 50;
-                const x = (Math.random() - 0.5) * (w * 0.8);
-                const width = 100 + Math.random() * 200;
-                const height = 30;
-                
-                // たまに回転するブロック
+            for(let i=0; i<60; i++) {
+                y -= 150 + Math.random() * 50;
+                const x = (Math.random() - 0.5) * (window.innerWidth * 0.8);
+                const w = 100 + Math.random() * 200;
                 const angle = Math.random() > 0.8 ? Math.PI / 4 : 0;
 
-                const block = Bodies.rectangle(x, y, width, height, { 
+                walls.push(Bodies.rectangle(x, y, w, 30, { 
                     isStatic: true, 
                     angle: angle,
                     collisionFilter: { category: CAT_WALL },
                     render: { fillStyle: '#667788' }
-                });
-                walls.push(block);
+                }));
             }
-            
-            // ゴール（宇宙）
-            walls.push(Bodies.rectangle(0, y - 300, 1000, 50, { 
-                isStatic: true, 
-                render: { fillStyle: '#ffff00' },
-                label: 'GOAL' 
-            }));
-
             Composite.add(engine.world, walls);
         }
 
-        // 入力時の処理（発射）
         function handleInput(e) {
             if (handState === 'IDLE') {
-                // 発射処理
                 const rect = render.canvas.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
-
-                // 画面座標をワールド座標に変換（カメラ補正）
                 const worldX = mouseX + render.bounds.min.x;
                 const worldY = mouseY + render.bounds.min.y;
-
                 fireHand(worldX, worldY);
             }
         }
 
-        function fireHand(targetX, targetY) {
+        function fireHand(tx, ty) {
             handState = 'FIRING';
             Sfx.play('shoot');
-
-            // 手をプレイヤーの位置にリセット
             Body.setPosition(hand, player.position);
             Body.setVelocity(hand, { x: 0, y: 0 });
 
-            // プレイヤーと手を繋ぐ「ゆるい」紐を作る（飛びすぎ防止）
             armConstraint = Constraint.create({
-                bodyA: player,
-                bodyB: hand,
-                length: 300, // 射程距離
-                stiffness: 0.05,
-                render: { visible: false }
+                bodyA: player, bodyB: hand, length: 300, stiffness: 0.05, render: { visible: false }
             });
             Composite.add(engine.world, armConstraint);
 
-            // ターゲット方向へ力を加える
-            const forceMag = 0.04;
-            const dir = Vector.sub({ x: targetX, y: targetY }, player.position);
-            const normalized = Vector.normalise(dir);
-            Body.applyForce(hand, hand.position, Vector.mult(normalized, forceMag));
+            const force = 0.04;
+            const dir = Vector.sub({ x: tx, y: ty }, player.position);
+            Body.applyForce(hand, hand.position, Vector.mult(Vector.normalise(dir), force));
         }
 
-        function stickHand(wallBody, contactPoint) {
+        function stickHand(wall, point) {
             if(handState === 'STUCK') return;
             handState = 'STUCK';
             Sfx.play('stick');
-
-            // 1. 手の動きを止める
             Body.setVelocity(hand, { x: 0, y: 0 });
-            // 手を少し接触点にめり込ませる補正（見た目用）
-            if(contactPoint) Body.setPosition(hand, contactPoint);
+            if(point) Body.setPosition(hand, point);
 
-            // 2. 手と壁を固定する（画鋲で留めるイメージ）
             stickConstraint = Constraint.create({
-                bodyA: wallBody,
-                bodyB: hand,
-                pointB: { x: 0, y: 0 },
-                pointA: Vector.sub(hand.position, wallBody.position), // 壁のローカル座標
-                stiffness: 1,
-                length: 0,
-                render: { visible: false }
+                bodyA: wall, bodyB: hand, pointB: { x: 0, y: 0 },
+                pointA: Vector.sub(hand.position, wall.position),
+                stiffness: 1, length: 0, render: { visible: false }
             });
             Composite.add(engine.world, stickConstraint);
 
-            // 3. プレイヤーと手の紐を「ゴム」に変える
             Composite.remove(engine.world, armConstraint);
             const dist = Vector.magnitude(Vector.sub(player.position, hand.position));
-            
             armConstraint = Constraint.create({
-                bodyA: player,
-                bodyB: hand,
-                length: dist, // 現在の距離からスタート
-                stiffness: 0.02, // 柔らかいゴム
-                damping: 0.05,
-                render: { visible: false }
+                bodyA: player, bodyB: hand, length: dist, stiffness: 0.02, damping: 0.05, render: { visible: false }
             });
             Composite.add(engine.world, armConstraint);
         }
 
         function releaseHand() {
             if(handState === 'STUCK') {
-                // 固定を解除
                 if(stickConstraint) Composite.remove(engine.world, stickConstraint);
                 stickConstraint = null;
             }
-            
-            // 紐も解除してIDLEへ
             if(armConstraint) Composite.remove(engine.world, armConstraint);
             armConstraint = null;
-            
             handState = 'IDLE';
-            // 手をプレイヤーの近くに収納（非表示的扱い）
             Body.setPosition(hand, player.position);
         }
 
         function updateGameLogic() {
-            // IDLE中、手はプレイヤーに追従
             if(handState === 'IDLE') {
                 Body.setPosition(hand, player.position);
-                Body.setVelocity(hand, player.velocity);
             }
-
-            // STUCK中かつドラッグ中なら、ゴムを縮める（引っ張るアクション）
             if(handState === 'STUCK' && isDragging && armConstraint) {
                 if(armConstraint.length > 20) {
-                    armConstraint.length -= 10; // どんどん短くする
-                    armConstraint.stiffness = 0.1; // 引っ張る時は少し硬く
+                    armConstraint.length -= 12; // 縮む速度
+                    armConstraint.stiffness = 0.1;
                 }
-            } else if (handState === 'STUCK' && !isDragging) {
-                // 離したら戻す（基本ここには来ないが安全策）
-                releaseHand();
             }
-
-            // 高さ表示更新
-            const height = Math.floor(Math.abs(Math.min(0, player.position.y - 200)) / 10);
-            document.getElementById('height-meter').innerText = height + "m";
-            
-            // 落下判定（画面下すぎたらゲームオーバー演出...はナシで、ただ落ちるだけがこのゲームの醍醐味）
-            if(player.position.y > 500) {
-                // スタート地点の床があるので無限落下はしない
-            }
+            // 高さ
+            const h = Math.floor(Math.abs(Math.min(0, player.position.y - 200)) / 10);
+            document.getElementById('height-meter').innerText = h + "m";
         }
 
         function updateCamera() {
-            // カメラをプレイヤーの少し上に追従させる
-            const width = render.options.width;
-            const height = render.options.height;
-            const targetY = player.position.y - height * 0.3; // プレイヤーを画面下寄りに配置
-
-            // スムーズなカメラ移動
+            const h = render.options.height;
+            const targetY = player.position.y - h * 0.3;
             const currentY = render.bounds.min.y;
             const lerpY = currentY + (targetY - currentY) * 0.1;
-
             Render.lookAt(render, {
-                min: { x: -width / 2, y: lerpY },
-                max: { x: width / 2, y: lerpY + height }
+                min: { x: -render.options.width / 2, y: lerpY },
+                max: { x: render.options.width / 2, y: lerpY + h }
             });
         }
 
-        // 独自の描画（ネバネバの腕）
         function drawArm() {
             if (handState === 'IDLE') return;
-
             const ctx = render.context;
-            const start = player.position;
-            const end = hand.position;
-
-            // 画面座標変換はMatter.Renderが自動で行ってくれているので、boundsオフセットを考慮する必要がある場合があるが、
-            // afterRender内ではContextのTransformが設定されている場合が多い。
-            // しかしMatter.jsのデフォルトレンダラーの仕様上、ここでは生座標で描いて大丈夫。
+            const s = player.position;
+            const e = hand.position;
 
             ctx.beginPath();
-            ctx.moveTo(start.x, start.y);
-            
-            // ネバネバ感を出すためのベジェ曲線（少し垂れる）
-            const midX = (start.x + end.x) / 2;
-            const midY = (start.y + end.y) / 2 + 20; // 少し垂らす
-            
+            ctx.moveTo(s.x, s.y);
             if(handState === 'STUCK' && isDragging) {
-                // 引っ張ってる時はピンと張る
-                ctx.lineTo(end.x, end.y);
+                ctx.lineTo(e.x, e.y);
                 ctx.strokeStyle = '#00ff66';
-                ctx.lineWidth = Math.max(2, 10 - (Vector.magnitude(Vector.sub(start, end)) / 50)); // 伸びると細くなる
+                ctx.lineWidth = Math.max(2, 10 - (Vector.magnitude(Vector.sub(s, e)) / 50));
             } else {
-                // 飛んでる時は少しカーブ
-                ctx.quadraticCurveTo(midX, midY, end.x, end.y);
+                ctx.quadraticCurveTo((s.x+e.x)/2, (s.y+e.y)/2+20, e.x, e.y);
                 ctx.strokeStyle = '#00cc55';
                 ctx.lineWidth = 5;
             }
-            
             ctx.lineCap = 'round';
             ctx.stroke();
 
-            // 手の描画（上書き）
             ctx.beginPath();
-            ctx.arc(end.x, end.y, 10, 0, 2 * Math.PI);
+            ctx.arc(e.x, e.y, 10, 0, 2 * Math.PI);
             ctx.fillStyle = '#00ff66';
             ctx.fill();
         }
-
     </script>
 </body>
 </html>
