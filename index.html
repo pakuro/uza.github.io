@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>War Strategy: Boss Rush</title>
+    <title>War Strategy: EASY MODE</title>
     <style>
         body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; user-select: none; }
         
@@ -95,7 +95,9 @@
 
         let gameState = 'playing';
         let frame = 0;
+        // ★初期資金 $500
         let money = 500; 
+        // ★増加額ベース (レベルアップで増える)
         let moneyRate = 1; 
         let upgradeCost = 500;
         
@@ -106,10 +108,8 @@
         let projectiles = [];
         let floatingTexts = [];
 
-        // プレイヤー基地: HP高め
         const basePlayer = { x: 50, hp: 3000, maxHp: 3000, team: 'player', color: '#00ccff', w:60 };
-        // 敵基地（ボス）: HP低め（1500）
-        const baseEnemy = { x: window.innerWidth - 100, hp: 1500, maxHp: 1500, team: 'enemy', color: '#ff3333', w:60 };
+        const baseEnemy = { x: window.innerWidth - 100, hp: 3000, maxHp: 3000, team: 'enemy', color: '#ff3333', w:60 };
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -126,7 +126,7 @@
                 this.type = type;
                 this.team = team;
                 
-                // プレイヤー側バフ
+                // プレイヤーユニットは1.3倍強化
                 const buff = (team === 'player') ? 1.3 : 1.0;
                 
                 this.maxHp = data.hp * buff;
@@ -149,8 +149,7 @@
                     this.vx = this.speed;
                 } else {
                     this.x = baseEnemy.x - 60;
-                    // ★敵はちゃんと動くように設定（マイナス方向）
-                    this.vx = -this.speed; 
+                    this.vx = -this.speed;
                 }
                 this.y = GROUND_Y - this.h;
             }
@@ -162,7 +161,6 @@
                 let minDist = 9999;
                 const enemyTeam = (this.team === 'player') ? 'enemy' : 'player';
 
-                // ユニット検索
                 for(let u of units) {
                     if (u.team === enemyTeam && !u.dead) {
                         const dist = Math.abs(u.x - this.x);
@@ -173,7 +171,6 @@
                     }
                 }
 
-                // 基地検索
                 const baseTarget = (this.team === 'player') ? baseEnemy : basePlayer;
                 const baseDist = Math.abs(baseTarget.x - this.x);
                 if (baseDist < minDist) {
@@ -300,15 +297,16 @@
             if(gameState !== 'playing') return;
             enemyTimer++;
             
-            // 敵の出現ペース：少しゆっくりめ（倒すとお金が入るボーナス敵という扱い）
-            let spawnInterval = 180 - (frame / 500); 
-            if(spawnInterval < 100) spawnInterval = 100;
+            // ★敵の出現ペースを大幅ダウン（200フレーム以上間隔）
+            // 以前は 120 - (frame/300) だった
+            let spawnInterval = 250 - (frame / 500); 
+            if(spawnInterval < 100) spawnInterval = 100; // 最速でも遅め
 
             if (enemyTimer > spawnInterval) {
                 const r = Math.random();
                 let type = 'soldier';
-                // 時間経過で強い敵も出る（お金チャンス）
-                if (r < 0.25 && frame > 1000) type = 'tank';
+                // 強い敵が出る確率も下げる
+                if (r < 0.2 && frame > 1000) type = 'tank';
                 if (r < 0.05 && frame > 2000) type = 'sniper';
                 
                 units.push(new Unit(type, 'enemy'));
@@ -320,7 +318,8 @@
             if (gameState !== 'playing') return;
             frame++;
 
-            // 高速集金
+            // ★お金増加ロジック変更：6フレーム(約0.1秒)ごとに加算
+            // これで moneyRate=1 なら秒間10コイン、moneyRate=5なら秒間50コイン
             if (frame % 6 === 0) {
                 money += moneyRate;
             }
@@ -362,6 +361,8 @@
             
             ctx.fillStyle = '#2d8f2d';
             ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+            ctx.fillStyle = '#257025';
+            ctx.fillRect(0, GROUND_Y, canvas.width, 10);
 
             drawBase(basePlayer);
             drawBase(baseEnemy);
@@ -389,13 +390,6 @@
             ctx.fillRect(base.x - 50, GROUND_Y - 110, 100 * pct, 12);
             ctx.strokeStyle = '#fff';
             ctx.strokeRect(base.x - 50, GROUND_Y - 110, 100, 12);
-            
-            // 敵基地にBOSS表記
-            if(base.team === 'enemy') {
-                ctx.fillStyle = 'red';
-                ctx.font = 'bold 20px Arial';
-                ctx.fillText("BOSS", base.x - 25, GROUND_Y - 120);
-            }
         }
 
         function endGame(win) {
