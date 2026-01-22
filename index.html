@@ -2,321 +2,466 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Nebby Climb: New Game</title>
+    <title>2D War Strategy: LINE DEFENSE</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #222; touch-action: none; font-family: sans-serif; }
-        #game-canvas { display: block; width: 100vw; height: 100vh; }
+        body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; user-select: none; }
         
-        #ui {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center;
-        }
-        #title-screen {
-            background: rgba(0,0,0,0.8); inset: 0; position: absolute; pointer-events: auto;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;
-            text-align: center; z-index: 100;
-        }
-        h1 { font-size: 50px; color: #00ff66; text-shadow: 0 0 10px #00ff66; margin: 0; letter-spacing: 5px; }
-        p { font-size: 18px; color: #ccc; margin-bottom: 30px; line-height: 1.6; }
-        button {
-            padding: 15px 40px; font-size: 24px; font-weight: bold; color: #000; background: #00ff66;
-            border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 0 15px #00ff66;
-            animation: pulse 1s infinite alternate;
-        }
-        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
+        /* ゲーム画面 */
+        canvas { display: block; width: 100vw; height: 100vh; background: #87CEEB; }
 
-        #height-meter {
-            position: absolute; top: 20px; right: 20px; color: white; font-size: 24px; font-weight: bold;
-            text-shadow: 2px 2px 0 #000; pointer-events: none;
+        /* UIレイヤー */
+        #ui-layer {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 140px;
+            background: rgba(0,0,0,0.8); border-top: 4px solid #fff;
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            padding-bottom: 10px;
+        }
+
+        /* ユニットボタン */
+        .btn {
+            width: 100px; height: 90px;
+            background: #444; color: white; border: 2px solid #666; border-radius: 8px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer; position: relative; transition: 0.1s;
+        }
+        .btn:active { transform: scale(0.95); background: #555; }
+        .btn.disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
+        .cost { color: #ffff00; font-size: 14px; margin-top: 5px; }
+        .name { font-size: 16px; font-weight: bold; }
+        
+        /* アップグレードボタン */
+        #btn-upgrade { background: #0055aa; border-color: #0077cc; }
+
+        /* 資金表示 */
+        #money-display {
+            position: absolute; top: -40px; left: 20px;
+            color: #ffff00; font-size: 30px; text-shadow: 2px 2px 0 #000;
+        }
+
+        /* ゲームオーバー/クリア画面 */
+        #overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            color: white; display: none;
+        }
+        #overlay h1 { font-size: 60px; margin: 0; color: #ff3333; text-transform: uppercase; }
+        #restart-btn {
+            margin-top: 30px; padding: 15px 50px; font-size: 24px; cursor: pointer;
+            background: #fff; color: #000; border: none; font-weight: bold;
         }
     </style>
 </head>
 <body>
 
-    <div id="ui">
-        <div id="height-meter">0m</div>
-        <div id="title-screen">
-            <h1>NEBBY CLIMB</h1>
-            <p>【操作方法】<br>タップ：手を飛ばす<br>長押し：引っ張る（縮む）<br>離す：手を離す<br><br>振り子を使って上を目指せ！</p>
-            <button id="start-btn">START GAME</button>
+    <div id="ui-layer">
+        <div id="money-display">MONEY: $0</div>
+        
+        <div class="btn" id="btn-soldier" onclick="spawnPlayerUnit('soldier')">
+            <div class="name">SOLDIER</div>
+            <div class="cost">$50</div>
+            <div style="font-size:10px; color:#aaa;">Basic</div>
+        </div>
+        
+        <div class="btn" id="btn-tank" onclick="spawnPlayerUnit('tank')">
+            <div class="name">TANK</div>
+            <div class="cost">$200</div>
+            <div style="font-size:10px; color:#aaa;">High HP</div>
+        </div>
+
+        <div class="btn" id="btn-sniper" onclick="spawnPlayerUnit('sniper')">
+            <div class="name">SNIPER</div>
+            <div class="cost">$350</div>
+            <div style="font-size:10px; color:#aaa;">Long Range</div>
+        </div>
+
+        <div style="width:20px;"></div> <div class="btn" id="btn-upgrade" onclick="upgradeWallet()">
+            <div class="name">UPGRADE</div>
+            <div class="cost" id="upg-cost">$500</div>
+            <div style="font-size:10px; color:#aaa;">Speed Up</div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <div id="overlay">
+        <h1 id="result-text">VICTORY</h1>
+        <button id="restart-btn" onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
 
     <script>
-        // --- 音響システム ---
-        const Sfx = {
-            ctx: null,
-            init: function() {
-                const AC = window.AudioContext || window.webkitAudioContext;
-                this.ctx = new AC();
-            },
-            play: function(type) {
-                if(!this.ctx) return;
-                const t = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                
-                if(type === 'shoot') {
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(600, t);
-                    osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
-                    gain.gain.setValueAtTime(0.3, t);
-                    gain.gain.linearRampToValueAtTime(0, t + 0.15);
-                } else if(type === 'stick') {
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(200, t);
-                    osc.frequency.exponentialRampToValueAtTime(50, t + 0.1);
-                    gain.gain.setValueAtTime(0.5, t);
-                    gain.gain.linearRampToValueAtTime(0, t + 0.1);
+        // --- 設定 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // ユニットデータ定義
+        const UNIT_TYPES = {
+            soldier: { cost: 50, hp: 50, dmg: 10, range: 40, speed: 2, reload: 40, color: '#33ff33', size: 15, w: 10, h: 20 },
+            tank:    { cost: 200, hp: 400, dmg: 40, range: 60, speed: 1, reload: 100, color: '#3366ff', size: 30, w: 40, h: 30 },
+            sniper:  { cost: 350, hp: 40, dmg: 80, range: 250, speed: 1.5, reload: 120, color: '#ff33ff', size: 15, w: 10, h: 25 }
+        };
+
+        // ゲーム状態
+        let gameState = 'playing'; // playing, win, lose
+        let frame = 0;
+        let money = 200;
+        let moneyRate = 1; // 収入増加率
+        let upgradeCost = 500;
+        
+        // エンティティ
+        const GROUND_Y = window.innerHeight - 200; // 地面の高さ
+        let units = [];
+        let particles = [];
+        let projectiles = [];
+
+        // 基地
+        const basePlayer = { x: 50, hp: 2000, maxHp: 2000, team: 'player', color: '#00ccff' };
+        const baseEnemy = { x: window.innerWidth - 150, hp: 2000, maxHp: 2000, team: 'enemy', color: '#ff3333' };
+
+        // リサイズ対応
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            baseEnemy.x = canvas.width - 150;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- クラス定義 ---
+
+        class Unit {
+            constructor(type, team) {
+                const data = UNIT_TYPES[type];
+                this.type = type;
+                this.team = team;
+                this.hp = data.hp;
+                this.maxHp = data.hp;
+                this.dmg = data.dmg;
+                this.range = data.range;
+                this.speed = data.speed;
+                this.reloadTime = data.reload;
+                this.color = data.color;
+                this.w = data.w;
+                this.h = data.h;
+
+                this.cooldown = 0;
+                this.state = 'move'; // move, attack, idle
+
+                // 出現位置
+                if (team === 'player') {
+                    this.x = basePlayer.x + 60;
+                    this.vx = this.speed;
+                } else {
+                    this.x = baseEnemy.x - 60;
+                    this.vx = -this.speed;
                 }
-                
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(t + 0.2);
+                this.y = GROUND_Y - this.h;
             }
-        };
 
-        // --- ゲームエンジン設定 ---
-        const Engine = Matter.Engine,
-              Render = Matter.Render,
-              Runner = Matter.Runner,
-              Bodies = Matter.Bodies,
-              Composite = Matter.Composite,
-              Constraint = Matter.Constraint,
-              Events = Matter.Events,
-              Vector = Matter.Vector,
-              Body = Matter.Body;
+            update() {
+                // 1. 最も近い敵を探す
+                let target = null;
+                let minDist = 9999;
 
-        let engine, render, runner;
-        let player, hand, armConstraint;
-        let isDragging = false;
-        let handState = 'IDLE'; 
-        let stickConstraint = null;
-
-        const CAT_PLAYER = 0x0001, CAT_WALL = 0x0002, CAT_HAND = 0x0004;
-
-        window.onload = () => {
-            const btn = document.getElementById('start-btn');
-            btn.onclick = () => {
-                Sfx.init();
-                document.getElementById('title-screen').style.display = 'none';
-                initGame();
-            };
-        };
-
-        function initGame() {
-            if(engine) return; // 二重起動防止
-
-            engine = Engine.create();
-            engine.world.gravity.y = 1.2;
-
-            render = Render.create({
-                element: document.body,
-                engine: engine,
-                options: {
-                    width: window.innerWidth,
-                    height: window.innerHeight,
-                    wireframes: false,
-                    background: '#222'
-                }
-            });
-
-            // プレイヤー
-            player = Bodies.circle(0, 0, 20, {
-                density: 0.005,
-                frictionAir: 0.01,
-                restitution: 0.2,
-                collisionFilter: { category: CAT_PLAYER, mask: CAT_WALL },
-                render: { fillStyle: '#ffcc00', strokeStyle: '#fff', lineWidth: 2 }
-            });
-
-            // 手
-            hand = Bodies.circle(0, 0, 8, {
-                isSensor: true,
-                density: 0.001,
-                collisionFilter: { category: CAT_HAND, mask: CAT_WALL },
-                render: { fillStyle: '#00ff66' }
-            });
-
-            createLevel();
-            Composite.add(engine.world, [player, hand]);
-
-            const canvas = render.canvas;
-            
-            // 操作イベント (PC & スマホ両対応)
-            canvas.addEventListener('pointerdown', (e) => {
-                isDragging = true;
-                handleInput(e);
-            });
-            canvas.addEventListener('pointerup', () => {
-                isDragging = false;
-                releaseHand();
-            });
-
-            Events.on(engine, 'collisionStart', (event) => {
-                const pairs = event.pairs;
-                for (let i = 0; i < pairs.length; i++) {
-                    const pair = pairs[i];
-                    if ((pair.bodyA === hand || pair.bodyB === hand) && handState === 'FIRING') {
-                        const wall = pair.bodyA === hand ? pair.bodyB : pair.bodyA;
-                        stickHand(wall, pair.collision.supports[0]);
+                // 敵ユニットを探す
+                units.forEach(u => {
+                    if (u.team !== this.team) {
+                        const dist = Math.abs(u.x - this.x);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            target = u;
+                        }
                     }
+                });
+
+                // 敵基地もターゲット候補
+                const baseTarget = (this.team === 'player') ? baseEnemy : basePlayer;
+                const baseDist = Math.abs(baseTarget.x - this.x);
+                if (baseDist < minDist) {
+                    minDist = baseDist;
+                    target = baseTarget; // 基地を攻撃対象にする
+                    // 基地はオブジェクトなので簡易的に処理
+                    target.isBase = true; 
                 }
-            });
 
-            Events.on(engine, 'beforeUpdate', () => {
-                updateGameLogic();
-                updateCamera();
-            });
-            
-            Events.on(render, 'afterRender', () => {
-                drawArm();
-            });
-
-            Render.run(render);
-            runner = Runner.create();
-            Runner.run(runner, engine);
-        }
-
-        function createLevel() {
-            const walls = [];
-            
-            // 床
-            walls.push(Bodies.rectangle(0, 200, 600, 50, { isStatic: true, render: { fillStyle: '#555' } }));
-
-            // ステージ生成
-            let y = 0;
-            for(let i=0; i<60; i++) {
-                y -= 150 + Math.random() * 50;
-                const x = (Math.random() - 0.5) * (window.innerWidth * 0.8);
-                const w = 100 + Math.random() * 200;
-                const angle = Math.random() > 0.8 ? Math.PI / 4 : 0;
-
-                walls.push(Bodies.rectangle(x, y, w, 30, { 
-                    isStatic: true, 
-                    angle: angle,
-                    collisionFilter: { category: CAT_WALL },
-                    render: { fillStyle: '#667788' }
-                }));
-            }
-            Composite.add(engine.world, walls);
-        }
-
-        function handleInput(e) {
-            if (handState === 'IDLE') {
-                const rect = render.canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                const worldX = mouseX + render.bounds.min.x;
-                const worldY = mouseY + render.bounds.min.y;
-                fireHand(worldX, worldY);
-            }
-        }
-
-        function fireHand(tx, ty) {
-            handState = 'FIRING';
-            Sfx.play('shoot');
-            Body.setPosition(hand, player.position);
-            Body.setVelocity(hand, { x: 0, y: 0 });
-
-            armConstraint = Constraint.create({
-                bodyA: player, bodyB: hand, length: 300, stiffness: 0.05, render: { visible: false }
-            });
-            Composite.add(engine.world, armConstraint);
-
-            const force = 0.04;
-            const dir = Vector.sub({ x: tx, y: ty }, player.position);
-            Body.applyForce(hand, hand.position, Vector.mult(Vector.normalise(dir), force));
-        }
-
-        function stickHand(wall, point) {
-            if(handState === 'STUCK') return;
-            handState = 'STUCK';
-            Sfx.play('stick');
-            Body.setVelocity(hand, { x: 0, y: 0 });
-            if(point) Body.setPosition(hand, point);
-
-            stickConstraint = Constraint.create({
-                bodyA: wall, bodyB: hand, pointB: { x: 0, y: 0 },
-                pointA: Vector.sub(hand.position, wall.position),
-                stiffness: 1, length: 0, render: { visible: false }
-            });
-            Composite.add(engine.world, stickConstraint);
-
-            Composite.remove(engine.world, armConstraint);
-            const dist = Vector.magnitude(Vector.sub(player.position, hand.position));
-            armConstraint = Constraint.create({
-                bodyA: player, bodyB: hand, length: dist, stiffness: 0.02, damping: 0.05, render: { visible: false }
-            });
-            Composite.add(engine.world, armConstraint);
-        }
-
-        function releaseHand() {
-            if(handState === 'STUCK') {
-                if(stickConstraint) Composite.remove(engine.world, stickConstraint);
-                stickConstraint = null;
-            }
-            if(armConstraint) Composite.remove(engine.world, armConstraint);
-            armConstraint = null;
-            handState = 'IDLE';
-            Body.setPosition(hand, player.position);
-        }
-
-        function updateGameLogic() {
-            if(handState === 'IDLE') {
-                Body.setPosition(hand, player.position);
-            }
-            if(handState === 'STUCK' && isDragging && armConstraint) {
-                if(armConstraint.length > 20) {
-                    armConstraint.length -= 12; // 縮む速度
-                    armConstraint.stiffness = 0.1;
+                // 2. 行動決定
+                if (target && minDist <= this.range) {
+                    this.state = 'attack';
+                    this.cooldown--;
+                    if (this.cooldown <= 0) {
+                        this.attack(target);
+                        this.cooldown = this.reloadTime;
+                    }
+                } else {
+                    this.state = 'move';
+                    this.x += this.vx;
+                    this.cooldown = Math.max(0, this.cooldown - 1);
                 }
             }
-            // 高さ
-            const h = Math.floor(Math.abs(Math.min(0, player.position.y - 200)) / 10);
-            document.getElementById('height-meter').innerText = h + "m";
+
+            attack(target) {
+                // 弾を発射
+                projectiles.push(new Projectile(this.x, this.y + this.h/2, target, this.dmg, this.team));
+            }
+
+            takeDamage(amount) {
+                this.hp -= amount;
+                // ダメージポップアップ的なエフェクト（簡易）
+                spawnParticles(this.x, this.y + this.h/2, 3, '#fff');
+            }
+
+            draw() {
+                ctx.fillStyle = (this.team === 'enemy') ? '#ff5555' : this.color;
+                
+                // 体の描画
+                if (this.type === 'tank') {
+                    // 戦車っぽい形
+                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
+                    ctx.fillRect(this.x - this.w/2 + (this.team==='player'?10:-10), this.y-10, 20, 10); // 砲塔
+                } else if(this.type === 'sniper') {
+                     // 細長い
+                     ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
+                     // 銃
+                     ctx.fillStyle = '#000';
+                     ctx.fillRect(this.x, this.y + 5, (this.team==='player'?20:-20), 2);
+                } else {
+                    // 歩兵
+                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
+                }
+
+                // HPバー
+                const pct = this.hp / this.maxHp;
+                ctx.fillStyle = 'red';
+                ctx.fillRect(this.x - 15, this.y - 10, 30, 4);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(this.x - 15, this.y - 10, 30 * pct, 4);
+            }
         }
 
-        function updateCamera() {
-            const h = render.options.height;
-            const targetY = player.position.y - h * 0.3;
-            const currentY = render.bounds.min.y;
-            const lerpY = currentY + (targetY - currentY) * 0.1;
-            Render.lookAt(render, {
-                min: { x: -render.options.width / 2, y: lerpY },
-                max: { x: render.options.width / 2, y: lerpY + h }
+        class Projectile {
+            constructor(x, y, target, dmg, team) {
+                this.x = x;
+                this.y = y;
+                this.target = target; // 追尾はしないが着弾判定に使う
+                this.dmg = dmg;
+                this.team = team;
+                this.speed = 8;
+                this.active = true;
+
+                // ターゲット方向へ飛ぶ
+                const tx = (target.isBase) ? (target.x + (team==='player'?-50:50)) : target.x;
+                const ty = (target.isBase) ? (GROUND_Y - 50) : (target.y + target.h/2);
+                
+                const dx = tx - x;
+                const dy = ty - y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                this.vx = (dx / dist) * this.speed;
+                this.vy = (dy / dist) * this.speed;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // 地面衝突
+                if(this.y > GROUND_Y) this.active = false;
+
+                // 簡易当たり判定（ターゲットとの距離）
+                // 本来は全ユニット判定すべきだが軽量化のためターゲットとの距離を見る
+                // もしターゲットが死んでたら、その場に爆発
+                let hit = false;
+                
+                if (this.target.isBase) {
+                     // 基地判定
+                     if (Math.abs(this.x - this.target.x) < 80) {
+                         this.target.hp -= this.dmg;
+                         hit = true;
+                     }
+                } else if (units.includes(this.target)) {
+                    // ユニット判定
+                    if (Math.abs(this.x - this.target.x) < 20 && Math.abs(this.y - (this.target.y + this.target.h/2)) < 20) {
+                        this.target.takeDamage(this.dmg);
+                        hit = true;
+                    }
+                } else {
+                    // ターゲットが消滅していた場合、近くの敵に当たるか消える
+                    if (this.y > GROUND_Y - 20) this.active = false; 
+                }
+
+                if (hit) {
+                    this.active = false;
+                    spawnParticles(this.x, this.y, 5, 'orange');
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = 'yellow';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.vx = (Math.random() - 0.5) * 5;
+                this.vy = (Math.random() - 0.5) * 5;
+                this.life = 1.0;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.05;
+            }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, 4, 4);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // --- ゲームループ制御 ---
+
+        function spawnParticles(x, y, count, color) {
+            for(let i=0; i<count; i++) particles.push(new Particle(x, y, color));
+        }
+
+        function spawnPlayerUnit(type) {
+            if (gameState !== 'playing') return;
+            const cost = UNIT_TYPES[type].cost;
+            if (money >= cost) {
+                money -= cost;
+                units.push(new Unit(type, 'player'));
+            }
+        }
+
+        function upgradeWallet() {
+            if (money >= upgradeCost) {
+                money -= upgradeCost;
+                moneyRate++;
+                upgradeCost += 500;
+                document.getElementById('upg-cost').innerText = "$" + upgradeCost;
+            }
+        }
+
+        // 敵AI
+        let enemyTimer = 0;
+        function updateEnemyAI() {
+            enemyTimer++;
+            // 時間経過で強くなる
+            const difficulty = 1 + (frame / 3600); // 1分ごとに強化
+            
+            // プレイヤーが近づいてきたら防衛する、などのロジック
+            if (enemyTimer > 100 / difficulty) {
+                // ランダムにユニット生成
+                const r = Math.random();
+                let type = 'soldier';
+                if (r < 0.2 && frame > 600) type = 'tank';
+                if (r < 0.1 && frame > 1200) type = 'sniper';
+                
+                // お金無限（敵チート）だがクールダウンで制限
+                units.push(new Unit(type, 'enemy'));
+                enemyTimer = 0;
+            }
+        }
+
+        function update() {
+            if (gameState !== 'playing') return;
+            frame++;
+
+            // お金増加
+            if (frame % 10 === 0) money += moneyRate;
+            document.getElementById('money-display').innerText = "MONEY: $" + Math.floor(money);
+            
+            // ボタンの有効/無効切り替え
+            ['soldier', 'tank', 'sniper'].forEach(type => {
+                const btn = document.getElementById('btn-'+type);
+                if (money >= UNIT_TYPES[type].cost) btn.classList.remove('disabled');
+                else btn.classList.add('disabled');
+            });
+            const upgBtn = document.getElementById('btn-upgrade');
+            if (money >= upgradeCost) upgBtn.classList.remove('disabled');
+            else upgBtn.classList.add('disabled');
+
+            // AI
+            updateEnemyAI();
+
+            // ユニット更新
+            units.forEach(u => u.update());
+            units = units.filter(u => u.hp > 0);
+
+            // 弾更新
+            projectiles.forEach(p => p.update());
+            projectiles = projectiles.filter(p => p.active);
+
+            // パーティクル更新
+            particles.forEach(p => p.update());
+            particles = particles.filter(p => p.life > 0);
+
+            // 勝敗判定
+            if (basePlayer.hp <= 0) endGame(false);
+            if (baseEnemy.hp <= 0) endGame(true);
+        }
+
+        function draw() {
+            // 背景（空と地面）
+            ctx.fillStyle = '#87CEEB'; // Sky
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#44aa44'; // Ground
+            ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+
+            // 基地
+            drawBase(basePlayer);
+            drawBase(baseEnemy);
+
+            // オブジェクト
+            units.forEach(u => u.draw());
+            projectiles.forEach(p => p.draw());
+            particles.forEach(p => p.draw());
+
+            requestAnimationFrame(() => {
+                update();
+                draw();
             });
         }
 
-        function drawArm() {
-            if (handState === 'IDLE') return;
-            const ctx = render.context;
-            const s = player.position;
-            const e = hand.position;
-
+        function drawBase(base) {
+            ctx.fillStyle = base.color;
+            // ドーム型基地
             ctx.beginPath();
-            ctx.moveTo(s.x, s.y);
-            if(handState === 'STUCK' && isDragging) {
-                ctx.lineTo(e.x, e.y);
-                ctx.strokeStyle = '#00ff66';
-                ctx.lineWidth = Math.max(2, 10 - (Vector.magnitude(Vector.sub(s, e)) / 50));
-            } else {
-                ctx.quadraticCurveTo((s.x+e.x)/2, (s.y+e.y)/2+20, e.x, e.y);
-                ctx.strokeStyle = '#00cc55';
-                ctx.lineWidth = 5;
-            }
-            ctx.lineCap = 'round';
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(e.x, e.y, 10, 0, 2 * Math.PI);
-            ctx.fillStyle = '#00ff66';
+            ctx.arc(base.x, GROUND_Y, 60, Math.PI, 0);
             ctx.fill();
+            
+            // HPバー
+            const pct = Math.max(0, base.hp / base.maxHp);
+            ctx.fillStyle = '#333';
+            ctx.fillRect(base.x - 50, GROUND_Y - 100, 100, 10);
+            ctx.fillStyle = (pct > 0.5) ? '#00ff00' : 'red';
+            ctx.fillRect(base.x - 50, GROUND_Y - 100, 100 * pct, 10);
         }
+
+        function endGame(win) {
+            gameState = (win) ? 'win' : 'lose';
+            const ov = document.getElementById('overlay');
+            const txt = document.getElementById('result-text');
+            ov.style.display = 'flex';
+            if (win) {
+                txt.innerText = "VICTORY!";
+                txt.style.color = "#00ffcc";
+            } else {
+                txt.innerText = "DEFEAT...";
+                txt.style.color = "#ff3333";
+            }
+        }
+
+        // 開始
+        draw();
+
     </script>
 </body>
 </html>
