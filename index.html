@@ -2,12 +2,13 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>War Strategy: EASY MODE</title>
+    <title>War Strategy: BOSS BATTLE</title>
     <style>
         body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; user-select: none; }
         
         canvas { display: block; width: 100vw; height: 100vh; background: #87CEEB; }
 
+        /* UI */
         #ui-layer {
             position: absolute; bottom: 0; left: 0; width: 100%; height: 130px;
             background: rgba(0,0,0,0.85); border-top: 4px solid #fff;
@@ -35,6 +36,16 @@
             font-family: 'Courier New', monospace; font-weight: bold;
         }
 
+        /* 警告表示 */
+        #warning-msg {
+            position: absolute; top: 30%; width: 100%; text-align: center;
+            color: red; font-size: 80px; font-weight: bold; 
+            text-shadow: 0 0 10px yellow; display: none; z-index: 50;
+            animation: blink 0.5s infinite alternate;
+        }
+        @keyframes blink { from {opacity: 1;} to {opacity: 0;} }
+
+        /* 終了画面 */
         #overlay {
             position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -49,6 +60,8 @@
     </style>
 </head>
 <body>
+
+    <div id="warning-msg">WARNING!!<br>BOSS APPROACHING</div>
 
     <div id="ui-layer">
         <div id="money-display">MONEY: $0</div>
@@ -95,21 +108,22 @@
 
         let gameState = 'playing';
         let frame = 0;
-        // ★初期資金 $500
         let money = 500; 
-        // ★増加額ベース (レベルアップで増える)
-        let moneyRate = 1; 
+        let moneyRate = 2; // お金ザクザク
         let upgradeCost = 500;
         
         const GROUND_Y = window.innerHeight - 180;
         
+        // オブジェクト管理
         let units = [];
         let particles = [];
         let projectiles = [];
         let floatingTexts = [];
+        let boss = null;
+        let bossSpawned = false;
 
-        const basePlayer = { x: 50, hp: 3000, maxHp: 3000, team: 'player', color: '#00ccff', w:60 };
-        const baseEnemy = { x: window.innerWidth - 100, hp: 3000, maxHp: 3000, team: 'enemy', color: '#ff3333', w:60 };
+        const basePlayer = { x: 50, hp: 5000, maxHp: 5000, team: 'player', color: '#00ccff', w:60 };
+        const baseEnemy = { x: window.innerWidth - 100, hp: 5000, maxHp: 5000, team: 'enemy', color: '#ff3333', w:60 };
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -119,20 +133,20 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // --- Class Definitions ---
+        // --- クラス定義 ---
+
+        // 通常ユニット
         class Unit {
             constructor(type, team) {
                 const data = UNIT_TYPES[type];
                 this.type = type;
                 this.team = team;
                 
-                // プレイヤーユニットは1.3倍強化
-                const buff = (team === 'player') ? 1.3 : 1.0;
+                const buff = (team === 'player') ? 1.5 : 1.0; // プレイヤーかなり強い
                 
                 this.maxHp = data.hp * buff;
                 this.hp = this.maxHp;
                 this.dmg = data.dmg * buff;
-                
                 this.range = data.range;
                 this.speed = data.speed;
                 this.reloadTime = data.reload;
@@ -161,7 +175,11 @@
                 let minDist = 9999;
                 const enemyTeam = (this.team === 'player') ? 'enemy' : 'player';
 
-                for(let u of units) {
+                // ボスもターゲット対象
+                const targets = [...units];
+                if (boss && boss.hp > 0 && this.team === 'player') targets.push(boss);
+
+                for(let u of targets) {
                     if (u.team === enemyTeam && !u.dead) {
                         const dist = Math.abs(u.x - this.x);
                         if (dist < minDist) {
@@ -171,6 +189,7 @@
                     }
                 }
 
+                // 基地ターゲット
                 const baseTarget = (this.team === 'player') ? baseEnemy : basePlayer;
                 const baseDist = Math.abs(baseTarget.x - this.x);
                 if (baseDist < minDist) {
@@ -194,7 +213,7 @@
             }
 
             attack(target) {
-                projectiles.push(new Projectile(this.x, this.y + this.h/2, target, this.dmg, this.team));
+                projectiles.push(new Projectile(this.x, this.y + this.h/2, target, this.dmg, this.team, 'bullet'));
             }
 
             takeDamage(amount, attackerTeam) {
@@ -212,47 +231,232 @@
 
             draw() {
                 ctx.fillStyle = (this.team === 'enemy') ? '#ff5555' : this.color;
-                if (this.type === 'tank') {
-                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                    ctx.fillStyle = '#222';
-                    ctx.fillRect(this.x + (this.team==='player'?5:-25), this.y-5, 20, 5);
-                } else {
-                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                    ctx.fillStyle = '#000';
-                    ctx.fillRect(this.x, this.y + 8, (this.team==='player'?15:-15), 2);
-                }
+                ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
+                // HP
                 const pct = Math.max(0, this.hp / this.maxHp);
-                ctx.fillStyle = '#444';
-                ctx.fillRect(this.x - 10, this.y - 8, 20, 4);
-                ctx.fillStyle = (this.team === 'player') ? '#00ff00' : '#ff0000';
-                ctx.fillRect(this.x - 10, this.y - 8, 20 * pct, 4);
+                ctx.fillStyle = '#444'; ctx.fillRect(this.x-10, this.y-8, 20, 4);
+                ctx.fillStyle = (this.team==='player')?'#00ff00':'#f00'; ctx.fillRect(this.x-10, this.y-8, 20*pct, 4);
+            }
+        }
+
+        // 👹 ボスクラス
+        class Boss {
+            constructor() {
+                this.x = baseEnemy.x; 
+                this.y = GROUND_Y - 120; // デカイ
+                this.w = 100;
+                this.h = 120;
+                this.team = 'enemy';
+                this.hp = 15000; // 超タフ
+                this.maxHp = 15000;
+                this.color = '#800080'; // 紫
+                this.dead = false;
+                
+                this.state = 'walk'; // walk, idle, spin, missile
+                this.targetX = baseEnemy.x - 200; // 少し前に出る
+                
+                this.actionTimer = 0;
+                this.spinAngle = 0;
+            }
+
+            update() {
+                if (this.dead) return;
+
+                // 登場シーン: 定位置まで歩く
+                if (this.state === 'walk') {
+                    if (this.x > this.targetX) {
+                        this.x -= 0.5;
+                    } else {
+                        this.state = 'combat';
+                    }
+                } 
+                else if (this.state === 'combat') {
+                    this.actionTimer++;
+
+                    // 一定間隔で攻撃を選択
+                    if (this.actionTimer > 150) {
+                        const r = Math.random();
+                        if (r < 0.5) {
+                            this.performSpinSlash();
+                        } else {
+                            this.performMissile();
+                        }
+                        this.actionTimer = 0;
+                    }
+                }
+
+                // スピンエフェクト用
+                if (this.spinAngle > 0) this.spinAngle -= 0.2;
+            }
+
+            performSpinSlash() {
+                // 回転斬り: 周囲の敵を吹き飛ばす
+                this.spinAngle = Math.PI * 2; // エフェクト開始
+                spawnFloatingText(this.x, this.y - 130, "SPIN SLASH!!", "#ff0000");
+
+                // 範囲攻撃判定
+                units.forEach(u => {
+                    if (u.team === 'player' && Math.abs(u.x - this.x) < 150) {
+                        u.takeDamage(100, 'enemy'); // 大ダメージ
+                        u.x -= 100; // ノックバック
+                    }
+                });
+            }
+
+            performMissile() {
+                // ミサイル: 一番遠い敵、あるいは基地を狙う
+                spawnFloatingText(this.x, this.y - 130, "MISSILE!!", "#ffaa00");
+                
+                // ターゲット選定
+                let target = basePlayer;
+                // たまにユニットを狙う
+                const playerUnits = units.filter(u => u.team === 'player');
+                if (playerUnits.length > 0) {
+                    target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
+                }
+
+                projectiles.push(new Projectile(this.x, this.y + 40, target, 200, 'enemy', 'missile'));
+            }
+
+            takeDamage(amount, attackerTeam) {
+                this.hp -= amount;
+                spawnParticles(this.x + (Math.random()-0.5)*80, this.y + (Math.random())*100, 2, '#fff');
+                if (this.hp <= 0 && !this.dead) {
+                    this.dead = true;
+                    money += 5000;
+                    spawnFloatingText(this.x, this.y, "BOSS DEFEATED!", "#gold");
+                    // ボスが死んだら基地も爆発
+                    baseEnemy.hp = 0; 
+                }
+            }
+
+            draw() {
+                // 本体
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
+                
+                // 顔（怖い顔）
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x - 20, this.y + 30, 10, 10); // 目
+                ctx.fillRect(this.x + 10, this.y + 30, 10, 10); // 目
+                ctx.fillStyle = 'red';
+                ctx.fillRect(this.x - 30, this.y + 60, 60, 5); // 口
+
+                // HPバー
+                const pct = Math.max(0, this.hp / this.maxHp);
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x - 60, this.y - 20, 120, 15);
+                ctx.fillStyle = 'purple';
+                ctx.fillRect(this.x - 60, this.y - 20, 120 * pct, 15);
+                ctx.strokeStyle = '#fff';
+                ctx.strokeRect(this.x - 60, this.y - 20, 120, 15);
+                ctx.fillStyle = '#fff';
+                ctx.font = "bold 12px Arial";
+                ctx.fillText("BOSS", this.x - 15, this.y - 25);
+
+                // 回転斬りエフェクト
+                if (this.spinAngle > 0.1) {
+                    ctx.save();
+                    ctx.translate(this.x, this.y + this.h/2);
+                    ctx.rotate(this.spinAngle);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 140, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'red';
+                    ctx.lineWidth = 10;
+                    ctx.stroke();
+                    ctx.restore();
+                }
             }
         }
 
         class Projectile {
-            constructor(x, y, target, dmg, team) {
+            constructor(x, y, target, dmg, team, type) {
                 this.x = x; this.y = y; this.target = target;
-                this.dmg = dmg; this.team = team; this.speed = 10; this.active = true;
+                this.dmg = dmg; this.team = team; this.type = type;
+                this.active = true;
+                
+                if (type === 'missile') {
+                    this.speed = 6;
+                } else {
+                    this.speed = 12;
+                }
+
+                // 目標地点計算
                 const tx = (target.isBase) ? target.x : target.x;
                 const ty = (target.isBase) ? (GROUND_Y - 40) : (target.y + 10);
                 const dx = tx - x; const dy = ty - y;
                 const d = Math.sqrt(dx*dx + dy*dy);
-                this.vx = (dx/d) * this.speed; this.vy = (dy/d) * this.speed;
+                this.vx = (dx/d) * this.speed; 
+                this.vy = (dy/d) * this.speed;
             }
+
             update() {
                 this.x += this.vx; this.y += this.vy;
+                
+                // ミサイルは煙を出す
+                if (this.type === 'missile') {
+                    spawnParticles(this.x, this.y, 1, 'gray');
+                }
+
                 let hit = false;
-                if (this.target.isBase) {
-                    if (Math.abs(this.x - this.target.x) < 50) { this.target.hp -= this.dmg; hit = true; }
-                } else if (!this.target.dead) {
-                    if (Math.abs(this.x - this.target.x) < 20 && Math.abs(this.y - (this.target.y + 10)) < 20) {
-                        this.target.takeDamage(this.dmg, this.team); hit = true;
+                
+                // ターゲットとの距離判定
+                // ミサイルは範囲爆発させたいが、簡易的にターゲット直撃にする
+                let distThreshold = (this.type === 'missile') ? 30 : 20;
+
+                let tx = this.target.x;
+                let ty = this.target.y + (this.target.h ? this.target.h/2 : 0);
+                if (this.target.isBase) { ty = GROUND_Y - 50; }
+
+                if (Math.abs(this.x - tx) < distThreshold && Math.abs(this.y - ty) < distThreshold) {
+                    hit = true;
+                } else if (this.y > GROUND_Y) {
+                    hit = true; // 地面衝突
+                }
+
+                if (hit) {
+                    this.active = false;
+                    if (this.type === 'missile') {
+                        // 爆発エフェクト
+                        spawnParticles(this.x, this.y, 20, 'orange');
+                        // ターゲットに大ダメージ
+                        if (this.target && this.target.hp > 0) {
+                            this.target.isBase ? (this.target.hp -= this.dmg) : this.target.takeDamage(this.dmg, this.team);
+                        }
+                        // 周囲にもダメージ（簡易）
+                        units.forEach(u => {
+                            if (u.team !== this.team && Math.abs(u.x - this.x) < 80) {
+                                u.takeDamage(this.dmg / 2, this.team);
+                            }
+                        });
+
+                    } else {
+                        spawnParticles(this.x, this.y, 3, 'yellow');
+                        if (this.target && !this.target.dead) {
+                             if(this.target.isBase) this.target.hp -= this.dmg;
+                             else this.target.takeDamage(this.dmg, this.team);
+                        }
                     }
-                } else { if (Math.abs(this.x - this.target.x) < 10) this.active = false; }
-                if (hit) { this.active = false; spawnParticles(this.x, this.y, 4, 'orange'); }
-                if (this.x < 0 || this.x > canvas.width) this.active = false;
+                }
             }
-            draw() { ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2); ctx.fill(); }
+            
+            draw() {
+                if (this.type === 'missile') {
+                    ctx.fillStyle = 'red';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 8, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = 'orange'; // 尾
+                    ctx.fillRect(this.x - this.vx*2, this.y - this.vy*2, 6, 6);
+                } else {
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 4, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
         }
 
         class FloatingText {
@@ -260,7 +464,7 @@
             update() { this.y+=this.vy; this.life-=0.02; }
             draw() {
                 ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color;
-                ctx.font = "bold 20px Arial"; ctx.strokeStyle="black"; ctx.lineWidth=3;
+                ctx.font = "bold 24px Arial"; ctx.strokeStyle="black"; ctx.lineWidth=3;
                 ctx.strokeText(this.text, this.x, this.y); ctx.fillText(this.text, this.x, this.y);
                 ctx.globalAlpha = 1.0;
             }
@@ -268,7 +472,7 @@
         class Particle {
             constructor(x, y, color) { this.x=x; this.y=y; this.color=color; this.vx=(Math.random()-0.5)*6; this.vy=(Math.random()-0.5)*6; this.life=1.0; }
             update() { this.x+=this.vx; this.y+=this.vy; this.life-=0.05; }
-            draw() { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle=this.color; ctx.fillRect(this.x, this.y, 4, 4); ctx.globalAlpha=1.0; }
+            draw() { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle=this.color; ctx.fillRect(this.x, this.y, 5, 5); ctx.globalAlpha=1.0; }
         }
         function spawnParticles(x, y, c, col) { for(let i=0; i<c; i++) particles.push(new Particle(x,y,col)); }
         function spawnFloatingText(x, y, txt, col) { floatingTexts.push(new FloatingText(x, y, txt, col)); }
@@ -293,38 +497,15 @@
         }
 
         let enemyTimer = 0;
-        function updateEnemyAI() {
-            if(gameState !== 'playing') return;
-            enemyTimer++;
-            
-            // ★敵の出現ペースを大幅ダウン（200フレーム以上間隔）
-            // 以前は 120 - (frame/300) だった
-            let spawnInterval = 250 - (frame / 500); 
-            if(spawnInterval < 100) spawnInterval = 100; // 最速でも遅め
-
-            if (enemyTimer > spawnInterval) {
-                const r = Math.random();
-                let type = 'soldier';
-                // 強い敵が出る確率も下げる
-                if (r < 0.2 && frame > 1000) type = 'tank';
-                if (r < 0.05 && frame > 2000) type = 'sniper';
-                
-                units.push(new Unit(type, 'enemy'));
-                enemyTimer = 0;
-            }
-        }
-
-        function update() {
+        function updateGame() {
             if (gameState !== 'playing') return;
             frame++;
 
-            // ★お金増加ロジック変更：6フレーム(約0.1秒)ごとに加算
-            // これで moneyRate=1 なら秒間10コイン、moneyRate=5なら秒間50コイン
-            if (frame % 6 === 0) {
-                money += moneyRate;
-            }
+            // お金増加
+            if (frame % 6 === 0) money += moneyRate;
             document.getElementById('money-display').innerText = "MONEY: $" + Math.floor(money);
             
+            // ボタン制御
             ['soldier', 'tank', 'sniper'].forEach(type => {
                 const btn = document.getElementById('btn-'+type);
                 if (money >= UNIT_TYPES[type].cost) btn.classList.remove('disabled');
@@ -334,10 +515,44 @@
             if (money >= upgradeCost) upgBtn.classList.remove('disabled');
             else upgBtn.classList.add('disabled');
 
-            updateEnemyAI();
+            // --- 敵出現ロジック ---
+            enemyTimer++;
+            let spawnInterval = 150 - (frame / 500); 
+            if(spawnInterval < 80) spawnInterval = 80;
 
+            if (enemyTimer > spawnInterval) {
+                const r = Math.random();
+                let type = 'soldier';
+                if (r < 0.3) type = 'tank';
+                if (r < 0.1) type = 'sniper';
+                units.push(new Unit(type, 'enemy'));
+                enemyTimer = 0;
+            }
+
+            // --- ボス出現チェック ---
+            // プレイヤーのユニットが画面の3/4 (width * 0.75) を超えたら出現
+            if (!bossSpawned) {
+                const invasionLine = canvas.width * 0.75;
+                const encroaching = units.some(u => u.team === 'player' && u.x > invasionLine);
+                
+                if (encroaching) {
+                    bossSpawned = true;
+                    boss = new Boss();
+                    // 警告表示
+                    const w = document.getElementById('warning-msg');
+                    w.style.display = 'block';
+                    setTimeout(() => w.style.display = 'none', 3000);
+                }
+            }
+
+            // --- アップデート ---
             units.forEach(u => u.update());
             units = units.filter(u => !u.dead);
+
+            if (boss) {
+                boss.update();
+                if (boss.dead) boss = null;
+            }
 
             projectiles.forEach(p => p.update());
             projectiles = projectiles.filter(p => p.active);
@@ -361,19 +576,23 @@
             
             ctx.fillStyle = '#2d8f2d';
             ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
-            ctx.fillStyle = '#257025';
-            ctx.fillRect(0, GROUND_Y, canvas.width, 10);
 
+            // 基地
             drawBase(basePlayer);
             drawBase(baseEnemy);
 
+            // ボスの後ろにユニットが隠れないよう、描画順序を調整してもよいが
+            // 基本は出現順でOK。ボスは大きいので最後に描画したほうが迫力が出る
             units.forEach(u => u.draw());
+            
+            if (boss) boss.draw();
+
             projectiles.forEach(p => p.draw());
             particles.forEach(p => p.draw());
             floatingTexts.forEach(t => t.draw());
 
             requestAnimationFrame(() => {
-                update();
+                updateGame();
                 draw();
             });
         }
@@ -398,10 +617,10 @@
             const txt = document.getElementById('result-text');
             ov.style.display = 'flex';
             if (win) {
-                txt.innerText = "VICTORY!!";
+                txt.innerText = "MISSION COMPLETE!!";
                 txt.style.color = "#00ffcc";
             } else {
-                txt.innerText = "DEFEAT...";
+                txt.innerText = "DEFEATED...";
                 txt.style.color = "#ff3333";
             }
         }
