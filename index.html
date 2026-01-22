@@ -2,22 +2,21 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>War Strategy: FINAL BOSS</title>
+    <title>War Strategy: Boss Rush</title>
     <style>
         body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; user-select: none; }
         
         canvas { display: block; width: 100vw; height: 100vh; background: #87CEEB; }
 
-        /* UIエリア */
         #ui-layer {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 140px;
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 130px;
             background: rgba(0,0,0,0.85); border-top: 4px solid #fff;
-            display: flex; justify-content: center; align-items: center; gap: 10px;
+            display: flex; justify-content: center; align-items: center; gap: 15px;
             padding-bottom: 10px; z-index: 10;
         }
 
         .btn {
-            width: 100px; height: 90px;
+            width: 110px; height: 90px;
             background: #444; color: white; border: 2px solid #666; border-radius: 8px;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             cursor: pointer; position: relative; transition: 0.1s;
@@ -26,12 +25,8 @@
         .btn:active { transform: translateY(4px); box-shadow: none; background: #555; }
         .btn.disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); transform: none; box-shadow: none;}
         .cost { color: #ffff00; font-size: 14px; margin-top: 5px; }
-        .name { font-size: 14px; font-weight: bold; }
+        .name { font-size: 16px; font-weight: bold; }
         
-        /* タイタンボタン（特別仕様） */
-        #btn-titan { background: #aa8800; border-color: #ffcc00; width: 120px; }
-        #btn-titan .name { font-size: 18px; color: #fff; text-shadow: 0 0 5px gold; }
-
         #btn-upgrade { background: #0055aa; border-color: #0077cc; }
 
         #money-display {
@@ -39,15 +34,6 @@
             color: #ffff00; font-size: 40px; text-shadow: 3px 3px 0 #000;
             font-family: 'Courier New', monospace; font-weight: bold;
         }
-
-        /* ボス出現警告 */
-        #boss-warning {
-            position: absolute; top: 30%; left: 0; width: 100%;
-            text-align: center; color: red; font-size: 60px; font-weight: bold;
-            text-shadow: 4px 4px 0 #000; display: none; pointer-events: none;
-            animation: blink 0.2s infinite alternate;
-        }
-        @keyframes blink { from {opacity:1;} to {opacity:0.5;} }
 
         #overlay {
             position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
@@ -57,7 +43,8 @@
         #overlay h1 { font-size: 60px; margin: 0; text-transform: uppercase; letter-spacing: 5px; }
         #restart-btn {
             margin-top: 30px; padding: 15px 50px; font-size: 24px; cursor: pointer;
-            background: #fff; color: #000; border: none; font-weight: bold; border-radius: 5px;
+            background: #fff; color: #000; border: none; font-weight: bold;
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -81,11 +68,6 @@
             <div class="cost">$350</div>
         </div>
 
-        <div class="btn" id="btn-titan" onclick="spawnPlayerUnit('titan')">
-            <div class="name">TITAN</div>
-            <div class="cost">$500</div>
-        </div>
-
         <div style="border-left: 2px solid #666; height: 60px; margin: 0 10px;"></div>
 
         <div class="btn" id="btn-upgrade" onclick="upgradeWallet()">
@@ -93,8 +75,6 @@
             <div class="cost" id="upg-cost">$500</div>
         </div>
     </div>
-
-    <div id="boss-warning">WARNING: BOSS APPROACHING!</div>
 
     <div id="overlay">
         <h1 id="result-text">VICTORY</h1>
@@ -107,20 +87,15 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // --- ユニット設定 ---
-        // Overlord(敵ボス): HP 8000, Atk 200
-        // Titan(味方ボス): HP 6000 (3/4), Atk 150 (3/4)
         const UNIT_TYPES = {
-            soldier:  { cost: 50,  hp: 60,   dmg: 12,  range: 40,  speed: 2,   reload: 40,  bounty: 30,  color: '#33ff33', w: 10, h: 20 },
-            tank:     { cost: 200, hp: 450,  dmg: 45,  range: 70,  speed: 1,   reload: 100, bounty: 150, color: '#3366ff', w: 40, h: 30 },
-            sniper:   { cost: 350, hp: 50,   dmg: 90,  range: 280, speed: 1.5, reload: 120, bounty: 200, color: '#ff33ff', w: 10, h: 25 },
-            titan:    { cost: 500, hp: 6000, dmg: 150, range: 60,  speed: 0.8, reload: 80,  bounty: 500, color: '#ddaa00', w: 60, h: 80 }, // 味方ボス
-            overlord: { cost: 0,   hp: 8000, dmg: 200, range: 250, speed: 0.6, reload: 90,  bounty: 5000,color: '#222222', w: 80, h: 100 } // 敵ラスボス
+            soldier: { cost: 50,  hp: 60,  dmg: 12, range: 40,  speed: 2,   reload: 40,  bounty: 30,  color: '#33ff33', w: 10, h: 20 },
+            tank:    { cost: 200, hp: 450, dmg: 45, range: 70,  speed: 1,   reload: 100, bounty: 150, color: '#3366ff', w: 40, h: 30 },
+            sniper:  { cost: 350, hp: 50,  dmg: 90, range: 280, speed: 1.5, reload: 120, bounty: 200, color: '#ff33ff', w: 10, h: 25 }
         };
 
         let gameState = 'playing';
         let frame = 0;
-        let money = 800; // 初期資金さらにアップ
+        let money = 500; 
         let moneyRate = 1; 
         let upgradeCost = 500;
         
@@ -130,12 +105,11 @@
         let particles = [];
         let projectiles = [];
         let floatingTexts = [];
-        
-        // ラスボス管理フラグ
-        let bossSpawned = false;
 
-        const basePlayer = { x: 50, hp: 5000, maxHp: 5000, team: 'player', color: '#00ccff', w:60 };
-        const baseEnemy = { x: window.innerWidth - 100, hp: 10000, maxHp: 10000, team: 'enemy', color: '#ff3333', w:60 };
+        // プレイヤー基地: HP高め
+        const basePlayer = { x: 50, hp: 3000, maxHp: 3000, team: 'player', color: '#00ccff', w:60 };
+        // 敵基地（ボス）: HP低め（1500）
+        const baseEnemy = { x: window.innerWidth - 100, hp: 1500, maxHp: 1500, team: 'enemy', color: '#ff3333', w:60 };
 
         function resize() {
             canvas.width = window.innerWidth;
@@ -145,16 +119,15 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // --- クラス定義 ---
-
+        // --- Class Definitions ---
         class Unit {
             constructor(type, team) {
                 const data = UNIT_TYPES[type];
                 this.type = type;
                 this.team = team;
                 
-                // 味方強化補正 (ボス以外)
-                let buff = (team === 'player' && type !== 'titan') ? 1.3 : 1.0;
+                // プレイヤー側バフ
+                const buff = (team === 'player') ? 1.3 : 1.0;
                 
                 this.maxHp = data.hp * buff;
                 this.hp = this.maxHp;
@@ -167,21 +140,17 @@
                 this.w = data.w;
                 this.h = data.h;
                 this.bounty = data.bounty;
-
                 this.cooldown = 0;
                 this.state = 'move';
                 this.dead = false;
-
-                // スピン攻撃用
-                this.spinCooldown = 0;
-                this.isSpinning = false;
 
                 if (team === 'player') {
                     this.x = basePlayer.x + 60;
                     this.vx = this.speed;
                 } else {
                     this.x = baseEnemy.x - 60;
-                    this.vx = -this.speed;
+                    // ★敵はちゃんと動くように設定（マイナス方向）
+                    this.vx = -this.speed; 
                 }
                 this.y = GROUND_Y - this.h;
             }
@@ -189,12 +158,11 @@
             update() {
                 if(this.dead) return;
 
-                // 索敵
                 let target = null;
                 let minDist = 9999;
                 const enemyTeam = (this.team === 'player') ? 'enemy' : 'player';
 
-                // 一番近い敵を探す
+                // ユニット検索
                 for(let u of units) {
                     if (u.team === enemyTeam && !u.dead) {
                         const dist = Math.abs(u.x - this.x);
@@ -205,7 +173,7 @@
                     }
                 }
 
-                // 基地判定
+                // 基地検索
                 const baseTarget = (this.team === 'player') ? baseEnemy : basePlayer;
                 const baseDist = Math.abs(baseTarget.x - this.x);
                 if (baseDist < minDist) {
@@ -214,85 +182,30 @@
                     target.isBase = true;
                 }
 
-                // 行動 AI
-                if (target) {
-                    // ★ ラスボス専用AI: 近くに敵がいれば回転斬り、遠ければ魔法弾
-                    if (this.type === 'overlord') {
-                        if (minDist <= 120 && this.spinCooldown <= 0) {
-                            // 近接範囲内なら回転攻撃発動
-                            this.doSpinAttack();
-                            this.cooldown = 60; // 硬直
-                        } else if (minDist <= this.range && this.cooldown <= 0) {
-                            // 遠距離攻撃
-                            this.attack(target);
-                            this.cooldown = this.reloadTime;
-                        } else {
-                            // クールダウン中 or 射程外
-                            if (minDist > this.range) {
-                                this.x += this.vx;
-                                this.state = 'move';
-                            }
-                        }
-                        this.spinCooldown--;
+                if (target && minDist <= this.range) {
+                    this.state = 'attack';
+                    this.cooldown--;
+                    if (this.cooldown <= 0) {
+                        this.attack(target);
+                        this.cooldown = this.reloadTime;
                     }
-                    // 通常ユニットAI
-                    else if (minDist <= this.range) {
-                        this.state = 'attack';
-                        this.cooldown--;
-                        if (this.cooldown <= 0) {
-                            this.attack(target);
-                            this.cooldown = this.reloadTime;
-                        }
-                    } else {
-                        this.state = 'move';
-                        this.x += this.vx;
-                        this.cooldown = Math.max(0, this.cooldown - 1);
-                    }
+                } else {
+                    this.state = 'move';
+                    this.x += this.vx;
+                    this.cooldown = Math.max(0, this.cooldown - 1);
                 }
             }
 
-            // 回転攻撃（周囲の敵全員にダメージ）
-            doSpinAttack() {
-                this.isSpinning = true;
-                this.spinCooldown = 200; // 次の回転まで時間かかる
-                
-                // エフェクト
-                spawnParticles(this.x, this.y + this.h/2, 20, '#purple');
-                spawnFloatingText(this.x, this.y - 50, "SPIN SLASH!!", "#ff0000");
-
-                // 判定：範囲150以内の敵すべて
-                const enemyTeam = (this.team === 'player') ? 'enemy' : 'player';
-                units.forEach(u => {
-                    if (u.team === enemyTeam && !u.dead) {
-                        if (Math.abs(u.x - this.x) < 150) {
-                            u.takeDamage(this.dmg * 1.5, this.team); // ダメージ1.5倍
-                            spawnParticles(u.x, u.y, 5, 'red');
-                        }
-                    }
-                });
-                
-                setTimeout(() => { this.isSpinning = false; }, 500);
-            }
-
             attack(target) {
-                // オーバーロードの弾はデカい
-                let size = (this.type === 'overlord' || this.type === 'titan') ? 10 : 3;
-                let color = (this.type === 'overlord') ? '#8800ff' : '#ffff00';
-                
-                projectiles.push(new Projectile(this.x, this.y + this.h/2, target, this.dmg, this.team, size, color));
+                projectiles.push(new Projectile(this.x, this.y + this.h/2, target, this.dmg, this.team));
             }
 
             takeDamage(amount, attackerTeam) {
                 this.hp -= amount;
-                spawnParticles(this.x, this.y + this.h/2, 1, '#fff');
+                spawnParticles(this.x, this.y + this.h/2, 2, '#fff');
                 
                 if (this.hp <= 0 && !this.dead) {
                     this.dead = true;
-                    // ボス撃破演出
-                    if (this.type === 'overlord') {
-                         spawnFloatingText(this.x, this.y-100, "BOSS DEFEATED!", "#gold");
-                         spawnParticles(this.x, this.y, 100, 'gold');
-                    }
                     if (this.team === 'enemy' && attackerTeam === 'player') {
                         money += this.bounty;
                         spawnFloatingText(this.x, this.y - 20, "+$" + this.bounty, '#ffff00');
@@ -301,45 +214,8 @@
             }
 
             draw() {
-                // スピン中の演出
-                if (this.isSpinning) {
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y + this.h/2, 120, 0, Math.PI*2);
-                    ctx.strokeStyle = `rgba(255, 0, 0, ${Math.random()})`;
-                    ctx.lineWidth = 10;
-                    ctx.stroke();
-                }
-
                 ctx.fillStyle = (this.team === 'enemy') ? '#ff5555' : this.color;
-                
-                // オーバーロード（ラスボス）の外見
-                if (this.type === 'overlord') {
-                    ctx.fillStyle = '#220033'; // 闇の色
-                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                    // ツノ
-                    ctx.fillStyle = '#aa0000';
-                    ctx.beginPath();
-                    ctx.moveTo(this.x - 20, this.y); ctx.lineTo(this.x - 30, this.y - 30); ctx.lineTo(this.x - 10, this.y);
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.moveTo(this.x + 20, this.y); ctx.lineTo(this.x + 30, this.y - 30); ctx.lineTo(this.x + 10, this.y);
-                    ctx.fill();
-                    // 目
-                    ctx.fillStyle = 'red';
-                    ctx.fillRect(this.x - 20, this.y + 20, 15, 5);
-                    ctx.fillRect(this.x + 5, this.y + 20, 15, 5);
-
-                } 
-                // タイタン（味方ボス）の外見
-                else if (this.type === 'titan') {
-                    ctx.fillStyle = '#ddaa00'; // 金色
-                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                    // バイザー
-                    ctx.fillStyle = '#00ffff';
-                    ctx.fillRect(this.x - 20, this.y + 15, 40, 10);
-                }
-                // その他
-                else if (this.type === 'tank') {
+                if (this.type === 'tank') {
                     ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
                     ctx.fillStyle = '#222';
                     ctx.fillRect(this.x + (this.team==='player'?5:-25), this.y-5, 20, 5);
@@ -348,28 +224,18 @@
                     ctx.fillStyle = '#000';
                     ctx.fillRect(this.x, this.y + 8, (this.team==='player'?15:-15), 2);
                 }
-
-                // HPバー (ボスは大きく)
-                const isBoss = (this.type === 'overlord' || this.type === 'titan');
-                const barW = isBoss ? 80 : 20;
-                const barH = isBoss ? 8 : 4;
-                const barY = isBoss ? 15 : 8;
-
                 const pct = Math.max(0, this.hp / this.maxHp);
                 ctx.fillStyle = '#444';
-                ctx.fillRect(this.x - barW/2, this.y - barY, barW, barH);
+                ctx.fillRect(this.x - 10, this.y - 8, 20, 4);
                 ctx.fillStyle = (this.team === 'player') ? '#00ff00' : '#ff0000';
-                ctx.fillRect(this.x - barW/2, this.y - barY, barW * pct, barH);
+                ctx.fillRect(this.x - 10, this.y - 8, 20 * pct, 4);
             }
         }
 
         class Projectile {
-            constructor(x, y, target, dmg, team, size, color) {
+            constructor(x, y, target, dmg, team) {
                 this.x = x; this.y = y; this.target = target;
                 this.dmg = dmg; this.team = team; this.speed = 10; this.active = true;
-                this.size = size || 3;
-                this.color = color || '#ffff00';
-                
                 const tx = (target.isBase) ? target.x : target.x;
                 const ty = (target.isBase) ? (GROUND_Y - 40) : (target.y + 10);
                 const dx = tx - x; const dy = ty - y;
@@ -382,14 +248,14 @@
                 if (this.target.isBase) {
                     if (Math.abs(this.x - this.target.x) < 50) { this.target.hp -= this.dmg; hit = true; }
                 } else if (!this.target.dead) {
-                    if (Math.abs(this.x - this.target.x) < (20+this.target.w/2) && Math.abs(this.y - (this.target.y + this.target.h/2)) < (20+this.target.h/2)) {
+                    if (Math.abs(this.x - this.target.x) < 20 && Math.abs(this.y - (this.target.y + 10)) < 20) {
                         this.target.takeDamage(this.dmg, this.team); hit = true;
                     }
                 } else { if (Math.abs(this.x - this.target.x) < 10) this.active = false; }
-                if (hit) { this.active = false; spawnParticles(this.x, this.y, 4, this.color); }
+                if (hit) { this.active = false; spawnParticles(this.x, this.y, 4, 'orange'); }
                 if (this.x < 0 || this.x > canvas.width) this.active = false;
             }
-            draw() { ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+            draw() { ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2); ctx.fill(); }
         }
 
         class FloatingText {
@@ -429,52 +295,22 @@
             }
         }
 
-        // --- ゲームループ制御 ---
-        
-        // ラスボス出現チェック
-        function checkBossSpawn() {
-            if (bossSpawned) return;
-            
-            // マップの3/4 (75%) ライン
-            const triggerLine = canvas.width * 0.75;
-            
-            // 誰か一人でもラインを超えたか？
-            let reached = units.some(u => u.team === 'player' && u.x > triggerLine);
-            
-            if (reached) {
-                spawnBoss();
-            }
-        }
-
-        function spawnBoss() {
-            bossSpawned = true;
-            // 警告表示
-            const w = document.getElementById('boss-warning');
-            w.style.display = 'block';
-            setTimeout(() => w.style.display = 'none', 4000);
-            
-            // ボス召喚
-            units.push(new Unit('overlord', 'enemy'));
-        }
-
         let enemyTimer = 0;
         function updateEnemyAI() {
             if(gameState !== 'playing') return;
             enemyTimer++;
             
-            // 普段の敵湧き（ゆっくり）
-            let spawnInterval = 250 - (frame / 500); 
+            // 敵の出現ペース：少しゆっくりめ（倒すとお金が入るボーナス敵という扱い）
+            let spawnInterval = 180 - (frame / 500); 
             if(spawnInterval < 100) spawnInterval = 100;
 
             if (enemyTimer > spawnInterval) {
                 const r = Math.random();
                 let type = 'soldier';
-                if (r < 0.2 && frame > 1000) type = 'tank';
+                // 時間経過で強い敵も出る（お金チャンス）
+                if (r < 0.25 && frame > 1000) type = 'tank';
                 if (r < 0.05 && frame > 2000) type = 'sniper';
                 
-                // ボスが出現しているときは雑魚がボスを守るように湧く
-                if (bossSpawned && Math.random() < 0.5) type = 'tank';
-
                 units.push(new Unit(type, 'enemy'));
                 enemyTimer = 0;
             }
@@ -484,11 +320,13 @@
             if (gameState !== 'playing') return;
             frame++;
 
-            if (frame % 6 === 0) money += moneyRate;
+            // 高速集金
+            if (frame % 6 === 0) {
+                money += moneyRate;
+            }
             document.getElementById('money-display').innerText = "MONEY: $" + Math.floor(money);
             
-            // ボタン制御
-            ['soldier', 'tank', 'sniper', 'titan'].forEach(type => {
+            ['soldier', 'tank', 'sniper'].forEach(type => {
                 const btn = document.getElementById('btn-'+type);
                 if (money >= UNIT_TYPES[type].cost) btn.classList.remove('disabled');
                 else btn.classList.add('disabled');
@@ -498,7 +336,6 @@
             else upgBtn.classList.add('disabled');
 
             updateEnemyAI();
-            checkBossSpawn(); // ボスチェック
 
             units.forEach(u => u.update());
             units = units.filter(u => !u.dead);
@@ -517,16 +354,9 @@
         }
 
         function draw() {
-            // 背景
             const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            // ボス出現時は空が暗くなる演出
-            if (bossSpawned) {
-                grd.addColorStop(0, "#330000");
-                grd.addColorStop(1, "#552222");
-            } else {
-                grd.addColorStop(0, "#00BFFF");
-                grd.addColorStop(1, "#87CEEB");
-            }
+            grd.addColorStop(0, "#00BFFF");
+            grd.addColorStop(1, "#87CEEB");
             ctx.fillStyle = grd;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
@@ -535,19 +365,6 @@
 
             drawBase(basePlayer);
             drawBase(baseEnemy);
-            
-            // トリガーライン（3/4）を目安として描画
-            if (!bossSpawned) {
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                ctx.setLineDash([10, 10]);
-                ctx.beginPath();
-                ctx.moveTo(canvas.width * 0.75, 0);
-                ctx.lineTo(canvas.width * 0.75, canvas.height);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                ctx.fillText("DANGER ZONE", canvas.width * 0.75 - 50, 50);
-            }
 
             units.forEach(u => u.draw());
             projectiles.forEach(p => p.draw());
@@ -572,6 +389,13 @@
             ctx.fillRect(base.x - 50, GROUND_Y - 110, 100 * pct, 12);
             ctx.strokeStyle = '#fff';
             ctx.strokeRect(base.x - 50, GROUND_Y - 110, 100, 12);
+            
+            // 敵基地にBOSS表記
+            if(base.team === 'enemy') {
+                ctx.fillStyle = 'red';
+                ctx.font = 'bold 20px Arial';
+                ctx.fillText("BOSS", base.x - 25, GROUND_Y - 120);
+            }
         }
 
         function endGame(win) {
