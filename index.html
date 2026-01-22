@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>War Strategy: Loot & Power</title>
+    <title>War Strategy: EASY MODE</title>
     <style>
         body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; user-select: none; }
         
@@ -30,8 +30,8 @@
         #btn-upgrade { background: #0055aa; border-color: #0077cc; }
 
         #money-display {
-            position: absolute; top: -50px; left: 20px;
-            color: #ffff00; font-size: 36px; text-shadow: 3px 3px 0 #000;
+            position: absolute; top: -60px; left: 20px;
+            color: #ffff00; font-size: 40px; text-shadow: 3px 3px 0 #000;
             font-family: 'Courier New', monospace; font-weight: bold;
         }
 
@@ -46,7 +46,6 @@
             background: #fff; color: #000; border: none; font-weight: bold;
             border-radius: 5px;
         }
-        #restart-btn:hover { background: #ccc; }
     </style>
 </head>
 <body>
@@ -88,7 +87,6 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // ユニットデータ（bounty = 倒した時の報酬）
         const UNIT_TYPES = {
             soldier: { cost: 50,  hp: 60,  dmg: 12, range: 40,  speed: 2,   reload: 40,  bounty: 30,  color: '#33ff33', w: 10, h: 20 },
             tank:    { cost: 200, hp: 450, dmg: 45, range: 70,  speed: 1,   reload: 100, bounty: 150, color: '#3366ff', w: 40, h: 30 },
@@ -97,8 +95,10 @@
 
         let gameState = 'playing';
         let frame = 0;
-        let money = 300; // 初期資金少し多め
-        let moneyRate = 2; // 自然増加も少し早め
+        // ★初期資金 $500
+        let money = 500; 
+        // ★増加額ベース (レベルアップで増える)
+        let moneyRate = 1; 
         let upgradeCost = 500;
         
         const GROUND_Y = window.innerHeight - 180;
@@ -108,7 +108,6 @@
         let projectiles = [];
         let floatingTexts = [];
 
-        // 基地
         const basePlayer = { x: 50, hp: 3000, maxHp: 3000, team: 'player', color: '#00ccff', w:60 };
         const baseEnemy = { x: window.innerWidth - 100, hp: 3000, maxHp: 3000, team: 'enemy', color: '#ff3333', w:60 };
 
@@ -120,15 +119,14 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // --- クラス定義 ---
-
+        // --- Class Definitions ---
         class Unit {
             constructor(type, team) {
                 const data = UNIT_TYPES[type];
                 this.type = type;
                 this.team = team;
                 
-                // ★強化ポイント：プレイヤー側のユニットは能力1.3倍
+                // プレイヤーユニットは1.3倍強化
                 const buff = (team === 'player') ? 1.3 : 1.0;
                 
                 this.maxHp = data.hp * buff;
@@ -141,8 +139,7 @@
                 this.color = data.color;
                 this.w = data.w;
                 this.h = data.h;
-                this.bounty = data.bounty; // 倒されたときの懸賞金
-
+                this.bounty = data.bounty;
                 this.cooldown = 0;
                 this.state = 'move';
                 this.dead = false;
@@ -160,13 +157,10 @@
             update() {
                 if(this.dead) return;
 
-                // 索敵
                 let target = null;
                 let minDist = 9999;
-                
                 const enemyTeam = (this.team === 'player') ? 'enemy' : 'player';
 
-                // 敵ユニット
                 for(let u of units) {
                     if (u.team === enemyTeam && !u.dead) {
                         const dist = Math.abs(u.x - this.x);
@@ -177,7 +171,6 @@
                     }
                 }
 
-                // 敵基地
                 const baseTarget = (this.team === 'player') ? baseEnemy : basePlayer;
                 const baseDist = Math.abs(baseTarget.x - this.x);
                 if (baseDist < minDist) {
@@ -210,7 +203,6 @@
                 
                 if (this.hp <= 0 && !this.dead) {
                     this.dead = true;
-                    // ★ここでお金ゲット（敵が死んだ場合のみ）
                     if (this.team === 'enemy' && attackerTeam === 'player') {
                         money += this.bounty;
                         spawnFloatingText(this.x, this.y - 20, "+$" + this.bounty, '#ffff00');
@@ -220,21 +212,15 @@
 
             draw() {
                 ctx.fillStyle = (this.team === 'enemy') ? '#ff5555' : this.color;
-                
-                // 簡易描画
                 if (this.type === 'tank') {
                     ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                    // 砲塔
                     ctx.fillStyle = '#222';
                     ctx.fillRect(this.x + (this.team==='player'?5:-25), this.y-5, 20, 5);
                 } else {
                     ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                    // 武器
                     ctx.fillStyle = '#000';
                     ctx.fillRect(this.x, this.y + 8, (this.team==='player'?15:-15), 2);
                 }
-
-                // HPバー
                 const pct = Math.max(0, this.hp / this.maxHp);
                 ctx.fillStyle = '#444';
                 ctx.fillRect(this.x - 10, this.y - 8, 20, 4);
@@ -245,103 +231,45 @@
 
         class Projectile {
             constructor(x, y, target, dmg, team) {
-                this.x = x;
-                this.y = y;
-                this.target = target;
-                this.dmg = dmg;
-                this.team = team;
-                this.speed = 10;
-                this.active = true;
-                
-                // ターゲットの中心へ
+                this.x = x; this.y = y; this.target = target;
+                this.dmg = dmg; this.team = team; this.speed = 10; this.active = true;
                 const tx = (target.isBase) ? target.x : target.x;
                 const ty = (target.isBase) ? (GROUND_Y - 40) : (target.y + 10);
-                
-                const dx = tx - x;
-                const dy = ty - y;
+                const dx = tx - x; const dy = ty - y;
                 const d = Math.sqrt(dx*dx + dy*dy);
-                this.vx = (dx/d) * this.speed;
-                this.vy = (dy/d) * this.speed;
+                this.vx = (dx/d) * this.speed; this.vy = (dy/d) * this.speed;
             }
-
             update() {
-                this.x += this.vx;
-                this.y += this.vy;
-
-                // 簡易衝突判定
+                this.x += this.vx; this.y += this.vy;
                 let hit = false;
                 if (this.target.isBase) {
-                    if (Math.abs(this.x - this.target.x) < 50) {
-                         this.target.hp -= this.dmg;
-                         hit = true;
-                    }
+                    if (Math.abs(this.x - this.target.x) < 50) { this.target.hp -= this.dmg; hit = true; }
                 } else if (!this.target.dead) {
                     if (Math.abs(this.x - this.target.x) < 20 && Math.abs(this.y - (this.target.y + 10)) < 20) {
-                        this.target.takeDamage(this.dmg, this.team);
-                        hit = true;
+                        this.target.takeDamage(this.dmg, this.team); hit = true;
                     }
-                } else {
-                    // ターゲットが既に死んでたら消滅
-                    if (Math.abs(this.x - this.target.x) < 10) this.active = false;
-                }
-
-                if (hit) {
-                    this.active = false;
-                    spawnParticles(this.x, this.y, 4, 'orange');
-                }
-                
+                } else { if (Math.abs(this.x - this.target.x) < 10) this.active = false; }
+                if (hit) { this.active = false; spawnParticles(this.x, this.y, 4, 'orange'); }
                 if (this.x < 0 || this.x > canvas.width) this.active = false;
             }
-
-            draw() {
-                ctx.fillStyle = '#ffff00';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 3, 0, Math.PI*2);
-                ctx.fill();
-            }
+            draw() { ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2); ctx.fill(); }
         }
 
-        // お金ゲット時の演出
         class FloatingText {
-            constructor(x, y, text, color) {
-                this.x = x;
-                this.y = y;
-                this.text = text;
-                this.color = color;
-                this.life = 1.0;
-                this.vy = -1.5; // 上に登る
-            }
-            update() {
-                this.y += this.vy;
-                this.life -= 0.02;
-            }
+            constructor(x, y, text, color) { this.x=x; this.y=y; this.text=text; this.color=color; this.life=1.0; this.vy=-1.5; }
+            update() { this.y+=this.vy; this.life-=0.02; }
             draw() {
-                ctx.globalAlpha = Math.max(0, this.life);
-                ctx.fillStyle = this.color;
-                ctx.font = "bold 20px Arial";
-                ctx.strokeStyle = "black";
-                ctx.lineWidth = 3;
-                ctx.strokeText(this.text, this.x, this.y);
-                ctx.fillText(this.text, this.x, this.y);
+                ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color;
+                ctx.font = "bold 20px Arial"; ctx.strokeStyle="black"; ctx.lineWidth=3;
+                ctx.strokeText(this.text, this.x, this.y); ctx.fillText(this.text, this.x, this.y);
                 ctx.globalAlpha = 1.0;
             }
         }
-
         class Particle {
-            constructor(x, y, color) {
-                this.x = x; this.y = y; this.color = color;
-                this.vx = (Math.random()-0.5)*6; this.vy = (Math.random()-0.5)*6;
-                this.life = 1.0;
-            }
+            constructor(x, y, color) { this.x=x; this.y=y; this.color=color; this.vx=(Math.random()-0.5)*6; this.vy=(Math.random()-0.5)*6; this.life=1.0; }
             update() { this.x+=this.vx; this.y+=this.vy; this.life-=0.05; }
-            draw() {
-                ctx.globalAlpha = Math.max(0, this.life);
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, 4, 4);
-                ctx.globalAlpha = 1.0;
-            }
+            draw() { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle=this.color; ctx.fillRect(this.x, this.y, 4, 4); ctx.globalAlpha=1.0; }
         }
-
         function spawnParticles(x, y, c, col) { for(let i=0; i<c; i++) particles.push(new Particle(x,y,col)); }
         function spawnFloatingText(x, y, txt, col) { floatingTexts.push(new FloatingText(x, y, txt, col)); }
 
@@ -357,27 +285,30 @@
         function upgradeWallet() {
             if (money >= upgradeCost) {
                 money -= upgradeCost;
-                moneyRate += 1; // アップグレード効果UP
-                upgradeCost += 400;
+                moneyRate += 1; 
+                upgradeCost += 500;
                 document.getElementById('upg-cost').innerText = "$" + upgradeCost;
-                spawnFloatingText(basePlayer.x, basePlayer.y - 100, "LEVEL UP!", "#00ffff");
+                spawnFloatingText(basePlayer.x, basePlayer.y - 100, "LEVEL UP!!", "#00ffff");
             }
         }
 
-        // 敵AI
         let enemyTimer = 0;
         function updateEnemyAI() {
             if(gameState !== 'playing') return;
             enemyTimer++;
-            // 敵も時間経過で湧く頻度が上がるが、プレイヤーの強化には及ばない
-            let spawnRate = 120 - (frame / 300); 
-            if(spawnRate < 40) spawnRate = 40;
+            
+            // ★敵の出現ペースを大幅ダウン（200フレーム以上間隔）
+            // 以前は 120 - (frame/300) だった
+            let spawnInterval = 250 - (frame / 500); 
+            if(spawnInterval < 100) spawnInterval = 100; // 最速でも遅め
 
-            if (enemyTimer > spawnRate) {
+            if (enemyTimer > spawnInterval) {
                 const r = Math.random();
                 let type = 'soldier';
-                if (r < 0.25 && frame > 400) type = 'tank';
-                if (r < 0.1 && frame > 900) type = 'sniper';
+                // 強い敵が出る確率も下げる
+                if (r < 0.2 && frame > 1000) type = 'tank';
+                if (r < 0.05 && frame > 2000) type = 'sniper';
+                
                 units.push(new Unit(type, 'enemy'));
                 enemyTimer = 0;
             }
@@ -387,10 +318,13 @@
             if (gameState !== 'playing') return;
             frame++;
 
-            if (frame % 10 === 0) money += moneyRate;
+            // ★お金増加ロジック変更：6フレーム(約0.1秒)ごとに加算
+            // これで moneyRate=1 なら秒間10コイン、moneyRate=5なら秒間50コイン
+            if (frame % 6 === 0) {
+                money += moneyRate;
+            }
             document.getElementById('money-display').innerText = "MONEY: $" + Math.floor(money);
             
-            // ボタン制御
             ['soldier', 'tank', 'sniper'].forEach(type => {
                 const btn = document.getElementById('btn-'+type);
                 if (money >= UNIT_TYPES[type].cost) btn.classList.remove('disabled');
@@ -419,20 +353,17 @@
         }
 
         function draw() {
-            // 背景
             const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
             grd.addColorStop(0, "#00BFFF");
             grd.addColorStop(1, "#87CEEB");
             ctx.fillStyle = grd;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // 地面
             ctx.fillStyle = '#2d8f2d';
             ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
-            ctx.fillStyle = '#257025'; // 草の影
+            ctx.fillStyle = '#257025';
             ctx.fillRect(0, GROUND_Y, canvas.width, 10);
 
-            // 基地描画
             drawBase(basePlayer);
             drawBase(baseEnemy);
 
@@ -452,8 +383,6 @@
             ctx.beginPath();
             ctx.arc(base.x, GROUND_Y, 70, Math.PI, 0);
             ctx.fill();
-            
-            // HP
             const pct = Math.max(0, base.hp / base.maxHp);
             ctx.fillStyle = '#000';
             ctx.fillRect(base.x - 50, GROUND_Y - 110, 100, 12);
