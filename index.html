@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>War Strategy: BOSS BATTLE</title>
+    <title>War Strategy: BOSS BATTLE (Fix)</title>
     <style>
         body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; user-select: none; }
         
@@ -135,14 +135,13 @@
 
         // --- クラス定義 ---
 
-        // 通常ユニット
         class Unit {
             constructor(type, team) {
                 const data = UNIT_TYPES[type];
                 this.type = type;
                 this.team = team;
                 
-                const buff = (team === 'player') ? 1.5 : 1.0; // プレイヤーかなり強い
+                const buff = (team === 'player') ? 1.5 : 1.0; 
                 
                 this.maxHp = data.hp * buff;
                 this.hp = this.maxHp;
@@ -243,17 +242,20 @@
         class Boss {
             constructor() {
                 this.x = baseEnemy.x; 
-                this.y = GROUND_Y - 120; // デカイ
+                this.y = GROUND_Y - 120;
                 this.w = 100;
                 this.h = 120;
                 this.team = 'enemy';
-                this.hp = 15000; // 超タフ
-                this.maxHp = 15000;
-                this.color = '#800080'; // 紫
+                
+                // ★体力を 15000 -> 5000 に変更
+                this.hp = 5000; 
+                this.maxHp = 5000;
+                
+                this.color = '#800080';
                 this.dead = false;
                 
-                this.state = 'walk'; // walk, idle, spin, missile
-                this.targetX = baseEnemy.x - 200; // 少し前に出る
+                this.state = 'walk'; 
+                this.targetX = baseEnemy.x - 200; 
                 
                 this.actionTimer = 0;
                 this.spinAngle = 0;
@@ -262,7 +264,6 @@
             update() {
                 if (this.dead) return;
 
-                // 登場シーン: 定位置まで歩く
                 if (this.state === 'walk') {
                     if (this.x > this.targetX) {
                         this.x -= 0.5;
@@ -272,8 +273,6 @@
                 } 
                 else if (this.state === 'combat') {
                     this.actionTimer++;
-
-                    // 一定間隔で攻撃を選択
                     if (this.actionTimer > 150) {
                         const r = Math.random();
                         if (r < 0.5) {
@@ -285,36 +284,27 @@
                     }
                 }
 
-                // スピンエフェクト用
                 if (this.spinAngle > 0) this.spinAngle -= 0.2;
             }
 
             performSpinSlash() {
-                // 回転斬り: 周囲の敵を吹き飛ばす
-                this.spinAngle = Math.PI * 2; // エフェクト開始
+                this.spinAngle = Math.PI * 2;
                 spawnFloatingText(this.x, this.y - 130, "SPIN SLASH!!", "#ff0000");
-
-                // 範囲攻撃判定
                 units.forEach(u => {
                     if (u.team === 'player' && Math.abs(u.x - this.x) < 150) {
-                        u.takeDamage(100, 'enemy'); // 大ダメージ
-                        u.x -= 100; // ノックバック
+                        u.takeDamage(100, 'enemy');
+                        u.x -= 100;
                     }
                 });
             }
 
             performMissile() {
-                // ミサイル: 一番遠い敵、あるいは基地を狙う
                 spawnFloatingText(this.x, this.y - 130, "MISSILE!!", "#ffaa00");
-                
-                // ターゲット選定
                 let target = basePlayer;
-                // たまにユニットを狙う
                 const playerUnits = units.filter(u => u.team === 'player');
                 if (playerUnits.length > 0) {
                     target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
                 }
-
                 projectiles.push(new Projectile(this.x, this.y + 40, target, 200, 'enemy', 'missile'));
             }
 
@@ -325,24 +315,20 @@
                     this.dead = true;
                     money += 5000;
                     spawnFloatingText(this.x, this.y, "BOSS DEFEATED!", "#gold");
-                    // ボスが死んだら基地も爆発
                     baseEnemy.hp = 0; 
                 }
             }
 
             draw() {
-                // 本体
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
                 
-                // 顔（怖い顔）
                 ctx.fillStyle = '#000';
-                ctx.fillRect(this.x - 20, this.y + 30, 10, 10); // 目
-                ctx.fillRect(this.x + 10, this.y + 30, 10, 10); // 目
+                ctx.fillRect(this.x - 20, this.y + 30, 10, 10);
+                ctx.fillRect(this.x + 10, this.y + 30, 10, 10);
                 ctx.fillStyle = 'red';
-                ctx.fillRect(this.x - 30, this.y + 60, 60, 5); // 口
+                ctx.fillRect(this.x - 30, this.y + 60, 60, 5);
 
-                // HPバー
                 const pct = Math.max(0, this.hp / this.maxHp);
                 ctx.fillStyle = '#000';
                 ctx.fillRect(this.x - 60, this.y - 20, 120, 15);
@@ -354,7 +340,6 @@
                 ctx.font = "bold 12px Arial";
                 ctx.fillText("BOSS", this.x - 15, this.y - 25);
 
-                // 回転斬りエフェクト
                 if (this.spinAngle > 0.1) {
                     ctx.save();
                     ctx.translate(this.x, this.y + this.h/2);
@@ -383,7 +368,6 @@
                     this.speed = 12;
                 }
 
-                // 目標地点計算
                 const tx = (target.isBase) ? target.x : target.x;
                 const ty = (target.isBase) ? (GROUND_Y - 40) : (target.y + 10);
                 const dx = tx - x; const dy = ty - y;
@@ -395,15 +379,11 @@
             update() {
                 this.x += this.vx; this.y += this.vy;
                 
-                // ミサイルは煙を出す
                 if (this.type === 'missile') {
                     spawnParticles(this.x, this.y, 1, 'gray');
                 }
 
                 let hit = false;
-                
-                // ターゲットとの距離判定
-                // ミサイルは範囲爆発させたいが、簡易的にターゲット直撃にする
                 let distThreshold = (this.type === 'missile') ? 30 : 20;
 
                 let tx = this.target.x;
@@ -413,19 +393,16 @@
                 if (Math.abs(this.x - tx) < distThreshold && Math.abs(this.y - ty) < distThreshold) {
                     hit = true;
                 } else if (this.y > GROUND_Y) {
-                    hit = true; // 地面衝突
+                    hit = true;
                 }
 
                 if (hit) {
                     this.active = false;
                     if (this.type === 'missile') {
-                        // 爆発エフェクト
                         spawnParticles(this.x, this.y, 20, 'orange');
-                        // ターゲットに大ダメージ
                         if (this.target && this.target.hp > 0) {
                             this.target.isBase ? (this.target.hp -= this.dmg) : this.target.takeDamage(this.dmg, this.team);
                         }
-                        // 周囲にもダメージ（簡易）
                         units.forEach(u => {
                             if (u.team !== this.team && Math.abs(u.x - this.x) < 80) {
                                 u.takeDamage(this.dmg / 2, this.team);
@@ -448,7 +425,7 @@
                     ctx.beginPath();
                     ctx.arc(this.x, this.y, 8, 0, Math.PI*2);
                     ctx.fill();
-                    ctx.fillStyle = 'orange'; // 尾
+                    ctx.fillStyle = 'orange'; 
                     ctx.fillRect(this.x - this.vx*2, this.y - this.vy*2, 6, 6);
                 } else {
                     ctx.fillStyle = '#ffff00';
@@ -501,11 +478,9 @@
             if (gameState !== 'playing') return;
             frame++;
 
-            // お金増加
             if (frame % 6 === 0) money += moneyRate;
             document.getElementById('money-display').innerText = "MONEY: $" + Math.floor(money);
             
-            // ボタン制御
             ['soldier', 'tank', 'sniper'].forEach(type => {
                 const btn = document.getElementById('btn-'+type);
                 if (money >= UNIT_TYPES[type].cost) btn.classList.remove('disabled');
@@ -515,7 +490,6 @@
             if (money >= upgradeCost) upgBtn.classList.remove('disabled');
             else upgBtn.classList.add('disabled');
 
-            // --- 敵出現ロジック ---
             enemyTimer++;
             let spawnInterval = 150 - (frame / 500); 
             if(spawnInterval < 80) spawnInterval = 80;
@@ -529,8 +503,6 @@
                 enemyTimer = 0;
             }
 
-            // --- ボス出現チェック ---
-            // プレイヤーのユニットが画面の3/4 (width * 0.75) を超えたら出現
             if (!bossSpawned) {
                 const invasionLine = canvas.width * 0.75;
                 const encroaching = units.some(u => u.team === 'player' && u.x > invasionLine);
@@ -538,14 +510,12 @@
                 if (encroaching) {
                     bossSpawned = true;
                     boss = new Boss();
-                    // 警告表示
                     const w = document.getElementById('warning-msg');
                     w.style.display = 'block';
                     setTimeout(() => w.style.display = 'none', 3000);
                 }
             }
 
-            // --- アップデート ---
             units.forEach(u => u.update());
             units = units.filter(u => !u.dead);
 
@@ -577,12 +547,9 @@
             ctx.fillStyle = '#2d8f2d';
             ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
 
-            // 基地
             drawBase(basePlayer);
             drawBase(baseEnemy);
 
-            // ボスの後ろにユニットが隠れないよう、描画順序を調整してもよいが
-            // 基本は出現順でOK。ボスは大きいので最後に描画したほうが迫力が出る
             units.forEach(u => u.draw());
             
             if (boss) boss.draw();
