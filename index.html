@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>War Strategy: BOSS BATTLE (Fix)</title>
+    <title>War Strategy: INFINITE POWER</title>
     <style>
         body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; user-select: none; }
         
@@ -28,7 +28,9 @@
         .cost { color: #ffff00; font-size: 14px; margin-top: 5px; }
         .name { font-size: 16px; font-weight: bold; }
         
-        #btn-upgrade { background: #0055aa; border-color: #0077cc; }
+        #btn-upgrade { background: #ffaa00; border-color: #ffdd00; color: #000; }
+        /* パワーアップ感を出すアニメーション */
+        #btn-upgrade:active { filter: brightness(1.2); }
 
         #money-display {
             position: absolute; top: -60px; left: 20px;
@@ -57,6 +59,13 @@
             background: #fff; color: #000; border: none; font-weight: bold;
             border-radius: 5px;
         }
+        
+        /* 現在の倍率表示 */
+        #power-display {
+            position: absolute; top: -100px; left: 20px;
+            color: #ff33ff; font-size: 24px; text-shadow: 2px 2px 0 #000;
+            font-weight: bold; display: none;
+        }
     </style>
 </head>
 <body>
@@ -64,6 +73,7 @@
     <div id="warning-msg">WARNING!!<br>BOSS APPROACHING</div>
 
     <div id="ui-layer">
+        <div id="power-display">POWER: x1.0</div>
         <div id="money-display">MONEY: $0</div>
         
         <div class="btn" id="btn-soldier" onclick="spawnPlayerUnit('soldier')">
@@ -84,7 +94,7 @@
         <div style="border-left: 2px solid #666; height: 60px; margin: 0 10px;"></div>
 
         <div class="btn" id="btn-upgrade" onclick="upgradeWallet()">
-            <div class="name">UPGRADE</div>
+            <div class="name">POWER UP</div>
             <div class="cost" id="upg-cost">$500</div>
         </div>
     </div>
@@ -108,13 +118,15 @@
 
         let gameState = 'playing';
         let frame = 0;
-        let money = 500; 
-        let moneyRate = 2; // お金ザクザク
+        let money = 1000; 
+        let moneyRate = 5; 
         let upgradeCost = 500;
         
+        // ★プレイヤー軍の強さ倍率
+        let playerPowerMult = 1.0;
+
         const GROUND_Y = window.innerHeight - 180;
         
-        // オブジェクト管理
         let units = [];
         let particles = [];
         let projectiles = [];
@@ -133,15 +145,16 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // --- クラス定義 ---
-
+        // --- Class Definitions ---
         class Unit {
             constructor(type, team) {
                 const data = UNIT_TYPES[type];
                 this.type = type;
                 this.team = team;
                 
-                const buff = (team === 'player') ? 1.5 : 1.0; 
+                // ★ここで倍率適用
+                // 基本の1.5倍バフ x アップグレード倍率
+                let buff = (team === 'player') ? (1.5 * playerPowerMult) : 1.0; 
                 
                 this.maxHp = data.hp * buff;
                 this.hp = this.maxHp;
@@ -160,6 +173,10 @@
                 if (team === 'player') {
                     this.x = basePlayer.x + 60;
                     this.vx = this.speed;
+                    // パワーアップしてる時は大きくする演出
+                    if (playerPowerMult > 2) {
+                        this.w *= 1.2; this.h *= 1.2; 
+                    }
                 } else {
                     this.x = baseEnemy.x - 60;
                     this.vx = -this.speed;
@@ -169,33 +186,22 @@
 
             update() {
                 if(this.dead) return;
-
                 let target = null;
                 let minDist = 9999;
                 const enemyTeam = (this.team === 'player') ? 'enemy' : 'player';
-
-                // ボスもターゲット対象
+                
                 const targets = [...units];
                 if (boss && boss.hp > 0 && this.team === 'player') targets.push(boss);
 
                 for(let u of targets) {
                     if (u.team === enemyTeam && !u.dead) {
                         const dist = Math.abs(u.x - this.x);
-                        if (dist < minDist) {
-                            minDist = dist;
-                            target = u;
-                        }
+                        if (dist < minDist) { minDist = dist; target = u; }
                     }
                 }
-
-                // 基地ターゲット
                 const baseTarget = (this.team === 'player') ? baseEnemy : basePlayer;
                 const baseDist = Math.abs(baseTarget.x - this.x);
-                if (baseDist < minDist) {
-                    minDist = baseDist;
-                    target = baseTarget;
-                    target.isBase = true;
-                }
+                if (baseDist < minDist) { minDist = baseDist; target = baseTarget; target.isBase = true; }
 
                 if (target && minDist <= this.range) {
                     this.state = 'attack';
@@ -218,7 +224,6 @@
             takeDamage(amount, attackerTeam) {
                 this.hp -= amount;
                 spawnParticles(this.x, this.y + this.h/2, 2, '#fff');
-                
                 if (this.hp <= 0 && !this.dead) {
                     this.dead = true;
                     if (this.team === 'enemy' && attackerTeam === 'player') {
@@ -230,128 +235,90 @@
 
             draw() {
                 ctx.fillStyle = (this.team === 'enemy') ? '#ff5555' : this.color;
-                ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                // HP
+                
+                // 強化されている場合、オーラを描画
+                if (this.team === 'player' && playerPowerMult > 1.0) {
+                    ctx.save();
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = 'gold';
+                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
+                    ctx.restore();
+                } else {
+                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
+                }
+
                 const pct = Math.max(0, this.hp / this.maxHp);
                 ctx.fillStyle = '#444'; ctx.fillRect(this.x-10, this.y-8, 20, 4);
                 ctx.fillStyle = (this.team==='player')?'#00ff00':'#f00'; ctx.fillRect(this.x-10, this.y-8, 20*pct, 4);
             }
         }
 
-        // 👹 ボスクラス
         class Boss {
             constructor() {
-                this.x = baseEnemy.x; 
-                this.y = GROUND_Y - 120;
-                this.w = 100;
-                this.h = 120;
+                this.x = baseEnemy.x; this.y = GROUND_Y - 120;
+                this.w = 100; this.h = 120;
                 this.team = 'enemy';
-                
-                // ★体力を 15000 -> 5000 に変更
-                this.hp = 5000; 
+                this.hp = 5000;
                 this.maxHp = 5000;
-                
                 this.color = '#800080';
                 this.dead = false;
-                
                 this.state = 'walk'; 
                 this.targetX = baseEnemy.x - 200; 
-                
                 this.actionTimer = 0;
                 this.spinAngle = 0;
             }
-
             update() {
                 if (this.dead) return;
-
                 if (this.state === 'walk') {
-                    if (this.x > this.targetX) {
-                        this.x -= 0.5;
-                    } else {
-                        this.state = 'combat';
-                    }
-                } 
-                else if (this.state === 'combat') {
+                    if (this.x > this.targetX) this.x -= 0.5;
+                    else this.state = 'combat';
+                } else if (this.state === 'combat') {
                     this.actionTimer++;
                     if (this.actionTimer > 150) {
-                        const r = Math.random();
-                        if (r < 0.5) {
-                            this.performSpinSlash();
-                        } else {
-                            this.performMissile();
-                        }
+                        Math.random() < 0.5 ? this.performSpinSlash() : this.performMissile();
                         this.actionTimer = 0;
                     }
                 }
-
                 if (this.spinAngle > 0) this.spinAngle -= 0.2;
             }
-
             performSpinSlash() {
                 this.spinAngle = Math.PI * 2;
                 spawnFloatingText(this.x, this.y - 130, "SPIN SLASH!!", "#ff0000");
                 units.forEach(u => {
                     if (u.team === 'player' && Math.abs(u.x - this.x) < 150) {
-                        u.takeDamage(100, 'enemy');
-                        u.x -= 100;
+                        u.takeDamage(100, 'enemy'); u.x -= 100;
                     }
                 });
             }
-
             performMissile() {
                 spawnFloatingText(this.x, this.y - 130, "MISSILE!!", "#ffaa00");
                 let target = basePlayer;
                 const playerUnits = units.filter(u => u.team === 'player');
-                if (playerUnits.length > 0) {
-                    target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
-                }
+                if (playerUnits.length > 0) target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
                 projectiles.push(new Projectile(this.x, this.y + 40, target, 200, 'enemy', 'missile'));
             }
-
             takeDamage(amount, attackerTeam) {
                 this.hp -= amount;
                 spawnParticles(this.x + (Math.random()-0.5)*80, this.y + (Math.random())*100, 2, '#fff');
                 if (this.hp <= 0 && !this.dead) {
-                    this.dead = true;
-                    money += 5000;
+                    this.dead = true; money += 5000;
                     spawnFloatingText(this.x, this.y, "BOSS DEFEATED!", "#gold");
                     baseEnemy.hp = 0; 
                 }
             }
-
             draw() {
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                
-                ctx.fillStyle = '#000';
-                ctx.fillRect(this.x - 20, this.y + 30, 10, 10);
-                ctx.fillRect(this.x + 10, this.y + 30, 10, 10);
-                ctx.fillStyle = 'red';
-                ctx.fillRect(this.x - 30, this.y + 60, 60, 5);
-
+                ctx.fillStyle = this.color; ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
+                ctx.fillStyle = '#000'; ctx.fillRect(this.x - 20, this.y + 30, 10, 10); ctx.fillRect(this.x + 10, this.y + 30, 10, 10);
+                ctx.fillStyle = 'red'; ctx.fillRect(this.x - 30, this.y + 60, 60, 5);
                 const pct = Math.max(0, this.hp / this.maxHp);
-                ctx.fillStyle = '#000';
-                ctx.fillRect(this.x - 60, this.y - 20, 120, 15);
-                ctx.fillStyle = 'purple';
-                ctx.fillRect(this.x - 60, this.y - 20, 120 * pct, 15);
-                ctx.strokeStyle = '#fff';
-                ctx.strokeRect(this.x - 60, this.y - 20, 120, 15);
-                ctx.fillStyle = '#fff';
-                ctx.font = "bold 12px Arial";
-                ctx.fillText("BOSS", this.x - 15, this.y - 25);
-
+                ctx.fillStyle = '#000'; ctx.fillRect(this.x - 60, this.y - 20, 120, 15);
+                ctx.fillStyle = 'purple'; ctx.fillRect(this.x - 60, this.y - 20, 120 * pct, 15);
+                ctx.strokeStyle = '#fff'; ctx.strokeRect(this.x - 60, this.y - 20, 120, 15);
+                ctx.fillStyle = '#fff'; ctx.font = "bold 12px Arial"; ctx.fillText("BOSS", this.x - 15, this.y - 25);
                 if (this.spinAngle > 0.1) {
-                    ctx.save();
-                    ctx.translate(this.x, this.y + this.h/2);
-                    ctx.rotate(this.spinAngle);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-                    ctx.beginPath();
-                    ctx.arc(0, 0, 140, 0, Math.PI*2);
-                    ctx.fill();
-                    ctx.strokeStyle = 'red';
-                    ctx.lineWidth = 10;
-                    ctx.stroke();
-                    ctx.restore();
+                    ctx.save(); ctx.translate(this.x, this.y + this.h/2); ctx.rotate(this.spinAngle);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.beginPath(); ctx.arc(0, 0, 140, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = 'red'; ctx.lineWidth = 10; ctx.stroke(); ctx.restore();
                 }
             }
         }
@@ -359,83 +326,47 @@
         class Projectile {
             constructor(x, y, target, dmg, team, type) {
                 this.x = x; this.y = y; this.target = target;
-                this.dmg = dmg; this.team = team; this.type = type;
-                this.active = true;
-                
-                if (type === 'missile') {
-                    this.speed = 6;
-                } else {
-                    this.speed = 12;
-                }
-
+                this.dmg = dmg; this.team = team; this.type = type; this.active = true;
+                this.speed = (type === 'missile') ? 6 : 12;
                 const tx = (target.isBase) ? target.x : target.x;
                 const ty = (target.isBase) ? (GROUND_Y - 40) : (target.y + 10);
                 const dx = tx - x; const dy = ty - y;
                 const d = Math.sqrt(dx*dx + dy*dy);
-                this.vx = (dx/d) * this.speed; 
-                this.vy = (dy/d) * this.speed;
+                this.vx = (dx/d) * this.speed; this.vy = (dy/d) * this.speed;
             }
-
             update() {
                 this.x += this.vx; this.y += this.vy;
-                
-                if (this.type === 'missile') {
-                    spawnParticles(this.x, this.y, 1, 'gray');
-                }
-
+                if (this.type === 'missile') spawnParticles(this.x, this.y, 1, 'gray');
                 let hit = false;
                 let distThreshold = (this.type === 'missile') ? 30 : 20;
-
                 let tx = this.target.x;
                 let ty = this.target.y + (this.target.h ? this.target.h/2 : 0);
-                if (this.target.isBase) { ty = GROUND_Y - 50; }
-
-                if (Math.abs(this.x - tx) < distThreshold && Math.abs(this.y - ty) < distThreshold) {
-                    hit = true;
-                } else if (this.y > GROUND_Y) {
-                    hit = true;
-                }
+                if (this.target.isBase) ty = GROUND_Y - 50;
+                if (Math.abs(this.x - tx) < distThreshold && Math.abs(this.y - ty) < distThreshold) hit = true;
+                else if (this.y > GROUND_Y) hit = true;
 
                 if (hit) {
                     this.active = false;
                     if (this.type === 'missile') {
                         spawnParticles(this.x, this.y, 20, 'orange');
-                        if (this.target && this.target.hp > 0) {
-                            this.target.isBase ? (this.target.hp -= this.dmg) : this.target.takeDamage(this.dmg, this.team);
-                        }
-                        units.forEach(u => {
-                            if (u.team !== this.team && Math.abs(u.x - this.x) < 80) {
-                                u.takeDamage(this.dmg / 2, this.team);
-                            }
-                        });
-
+                        if (this.target && this.target.hp > 0) this.target.isBase ? (this.target.hp -= this.dmg) : this.target.takeDamage(this.dmg, this.team);
+                        units.forEach(u => { if (u.team !== this.team && Math.abs(u.x - this.x) < 80) u.takeDamage(this.dmg / 2, this.team); });
                     } else {
                         spawnParticles(this.x, this.y, 3, 'yellow');
-                        if (this.target && !this.target.dead) {
-                             if(this.target.isBase) this.target.hp -= this.dmg;
-                             else this.target.takeDamage(this.dmg, this.team);
-                        }
+                        if (this.target && !this.target.dead) this.target.isBase ? (this.target.hp -= this.dmg) : this.target.takeDamage(this.dmg, this.team);
                     }
                 }
             }
-            
             draw() {
                 if (this.type === 'missile') {
-                    ctx.fillStyle = 'red';
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, 8, 0, Math.PI*2);
-                    ctx.fill();
-                    ctx.fillStyle = 'orange'; 
-                    ctx.fillRect(this.x - this.vx*2, this.y - this.vy*2, 6, 6);
+                    ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(this.x, this.y, 8, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = 'orange'; ctx.fillRect(this.x - this.vx*2, this.y - this.vy*2, 6, 6);
                 } else {
-                    ctx.fillStyle = '#ffff00';
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, 4, 0, Math.PI*2);
-                    ctx.fill();
+                    ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
                 }
             }
         }
-
+        
         class FloatingText {
             constructor(x, y, text, color) { this.x=x; this.y=y; this.text=text; this.color=color; this.life=1.0; this.vy=-1.5; }
             update() { this.y+=this.vy; this.life-=0.02; }
@@ -457,19 +388,29 @@
         function spawnPlayerUnit(type) {
             if (gameState !== 'playing') return;
             const cost = UNIT_TYPES[type].cost;
-            if (money >= cost) {
-                money -= cost;
-                units.push(new Unit(type, 'player'));
-            }
+            if (money >= cost) { money -= cost; units.push(new Unit(type, 'player')); }
         }
 
+        // ★★★ パワーアップグレード実装 ★★★
         function upgradeWallet() {
             if (money >= upgradeCost) {
                 money -= upgradeCost;
-                moneyRate += 1; 
+                
+                // お金スピードUP (前回同様)
+                moneyRate += 100; 
+                
+                // パワー倍率UP
+                playerPowerMult *= 1.5;
+
                 upgradeCost += 500;
                 document.getElementById('upg-cost').innerText = "$" + upgradeCost;
-                spawnFloatingText(basePlayer.x, basePlayer.y - 100, "LEVEL UP!!", "#00ffff");
+                
+                // 現在の倍率を表示
+                const disp = document.getElementById('power-display');
+                disp.style.display = 'block';
+                disp.innerText = "POWER: x" + playerPowerMult.toFixed(1);
+                
+                spawnFloatingText(basePlayer.x, basePlayer.y - 100, "POWER UP x1.5!!", "#ff00ff");
             }
         }
 
@@ -477,23 +418,19 @@
         function updateGame() {
             if (gameState !== 'playing') return;
             frame++;
-
             if (frame % 6 === 0) money += moneyRate;
             document.getElementById('money-display').innerText = "MONEY: $" + Math.floor(money);
             
             ['soldier', 'tank', 'sniper'].forEach(type => {
                 const btn = document.getElementById('btn-'+type);
-                if (money >= UNIT_TYPES[type].cost) btn.classList.remove('disabled');
-                else btn.classList.add('disabled');
+                if (money >= UNIT_TYPES[type].cost) btn.classList.remove('disabled'); else btn.classList.add('disabled');
             });
             const upgBtn = document.getElementById('btn-upgrade');
-            if (money >= upgradeCost) upgBtn.classList.remove('disabled');
-            else upgBtn.classList.add('disabled');
+            if (money >= upgradeCost) upgBtn.classList.remove('disabled'); else upgBtn.classList.add('disabled');
 
             enemyTimer++;
             let spawnInterval = 150 - (frame / 500); 
             if(spawnInterval < 80) spawnInterval = 80;
-
             if (enemyTimer > spawnInterval) {
                 const r = Math.random();
                 let type = 'soldier';
@@ -505,77 +442,42 @@
 
             if (!bossSpawned) {
                 const invasionLine = canvas.width * 0.75;
-                const encroaching = units.some(u => u.team === 'player' && u.x > invasionLine);
-                
-                if (encroaching) {
-                    bossSpawned = true;
-                    boss = new Boss();
+                if (units.some(u => u.team === 'player' && u.x > invasionLine)) {
+                    bossSpawned = true; boss = new Boss();
                     const w = document.getElementById('warning-msg');
-                    w.style.display = 'block';
-                    setTimeout(() => w.style.display = 'none', 3000);
+                    w.style.display = 'block'; setTimeout(() => w.style.display = 'none', 3000);
                 }
             }
 
-            units.forEach(u => u.update());
-            units = units.filter(u => !u.dead);
-
-            if (boss) {
-                boss.update();
-                if (boss.dead) boss = null;
-            }
-
-            projectiles.forEach(p => p.update());
-            projectiles = projectiles.filter(p => p.active);
-
-            particles.forEach(p => p.update());
-            particles = particles.filter(p => p.life > 0);
-
-            floatingTexts.forEach(t => t.update());
-            floatingTexts = floatingTexts.filter(t => t.life > 0);
-
+            units.forEach(u => u.update()); units = units.filter(u => !u.dead);
+            if (boss) { boss.update(); if (boss.dead) boss = null; }
+            projectiles.forEach(p => p.update()); projectiles = projectiles.filter(p => p.active);
+            particles.forEach(p => p.update()); particles = particles.filter(p => p.life > 0);
+            floatingTexts.forEach(t => t.update()); floatingTexts = floatingTexts.filter(t => t.life > 0);
             if (basePlayer.hp <= 0) endGame(false);
             if (baseEnemy.hp <= 0) endGame(true);
         }
 
         function draw() {
             const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            grd.addColorStop(0, "#00BFFF");
-            grd.addColorStop(1, "#87CEEB");
-            ctx.fillStyle = grd;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = '#2d8f2d';
-            ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
-
-            drawBase(basePlayer);
-            drawBase(baseEnemy);
-
+            grd.addColorStop(0, "#00BFFF"); grd.addColorStop(1, "#87CEEB");
+            ctx.fillStyle = grd; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#2d8f2d'; ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+            drawBase(basePlayer); drawBase(baseEnemy);
             units.forEach(u => u.draw());
-            
             if (boss) boss.draw();
-
             projectiles.forEach(p => p.draw());
             particles.forEach(p => p.draw());
             floatingTexts.forEach(t => t.draw());
-
-            requestAnimationFrame(() => {
-                updateGame();
-                draw();
-            });
+            requestAnimationFrame(() => { updateGame(); draw(); });
         }
 
         function drawBase(base) {
-            ctx.fillStyle = base.color;
-            ctx.beginPath();
-            ctx.arc(base.x, GROUND_Y, 70, Math.PI, 0);
-            ctx.fill();
+            ctx.fillStyle = base.color; ctx.beginPath(); ctx.arc(base.x, GROUND_Y, 70, Math.PI, 0); ctx.fill();
             const pct = Math.max(0, base.hp / base.maxHp);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(base.x - 50, GROUND_Y - 110, 100, 12);
-            ctx.fillStyle = (pct > 0.3) ? '#00ff00' : 'red';
-            ctx.fillRect(base.x - 50, GROUND_Y - 110, 100 * pct, 12);
-            ctx.strokeStyle = '#fff';
-            ctx.strokeRect(base.x - 50, GROUND_Y - 110, 100, 12);
+            ctx.fillStyle = '#000'; ctx.fillRect(base.x - 50, GROUND_Y - 110, 100, 12);
+            ctx.fillStyle = (pct > 0.3) ? '#00ff00' : 'red'; ctx.fillRect(base.x - 50, GROUND_Y - 110, 100 * pct, 12);
+            ctx.strokeStyle = '#fff'; ctx.strokeRect(base.x - 50, GROUND_Y - 110, 100, 12);
         }
 
         function endGame(win) {
@@ -583,13 +485,8 @@
             const ov = document.getElementById('overlay');
             const txt = document.getElementById('result-text');
             ov.style.display = 'flex';
-            if (win) {
-                txt.innerText = "MISSION COMPLETE!!";
-                txt.style.color = "#00ffcc";
-            } else {
-                txt.innerText = "DEFEATED...";
-                txt.style.color = "#ff3333";
-            }
+            if (win) { txt.innerText = "MISSION COMPLETE!!"; txt.style.color = "#00ffcc"; } 
+            else { txt.innerText = "DEFEATED..."; txt.style.color = "#ff3333"; }
         }
 
         draw();
