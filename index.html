@@ -2,494 +2,430 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>War Strategy: INFINITE POWER</title>
+    <title>Cosmic Evolution: 星の精霊</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #222; font-family: 'Arial Black', sans-serif; user-select: none; }
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
         
-        canvas { display: block; width: 100vw; height: 100vh; background: #87CEEB; }
-
-        /* UI */
-        #ui-layer {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 130px;
-            background: rgba(0,0,0,0.85); border-top: 4px solid #fff;
-            display: flex; justify-content: center; align-items: center; gap: 15px;
-            padding-bottom: 10px; z-index: 10;
+        body {
+            margin: 0; padding: 0;
+            background: #111; color: #fff;
+            font-family: 'Courier New', sans-serif;
+            overflow: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh;
         }
 
+        #game-container {
+            position: relative;
+            width: 500px; height: 700px;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            border: 4px solid #444;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* 上部ステータス */
+        #header {
+            padding: 15px;
+            background: rgba(0,0,0,0.5);
+            display: flex; justify-content: space-between;
+            border-bottom: 2px solid #444;
+        }
+        .stat-box { font-weight: bold; font-size: 14px; }
+        .val-str { color: #ff5555; }
+        .val-int { color: #55aaff; }
+        .val-luck { color: #ffdd55; }
+
+        /* メイン画面（Canvas） */
+        #canvas-wrapper {
+            flex-grow: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #2a2a40 0%, #000 100%);
+            cursor: pointer;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* HPバー */
+        #hp-container {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            width: 60%; height: 10px; background: #333; border-radius: 5px;
+            border: 1px solid #fff;
+        }
+        #hp-bar {
+            width: 100%; height: 100%; background: #00ff88;
+            border-radius: 5px; transition: width 0.3s;
+        }
+
+        /* コントロールパネル */
+        #controls {
+            height: 180px;
+            background: #222;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 10px; padding: 10px;
+        }
+        
         .btn {
-            width: 110px; height: 90px;
-            background: #444; color: white; border: 2px solid #666; border-radius: 8px;
+            background: #333; border: 2px solid #555; color: white;
+            border-radius: 10px; font-size: 16px; font-weight: bold;
+            cursor: pointer; transition: 0.1s;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .btn:active { transform: scale(0.95); background: #444; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn span { font-size: 12px; margin-top: 4px; color: #aaa; }
+
+        #btn-str { border-bottom: 4px solid #aa3333; }
+        #btn-int { border-bottom: 4px solid #3366aa; }
+        #btn-luck { border-bottom: 4px solid #aa9933; }
+        #btn-eat { border-bottom: 4px solid #33aa66; background: #2f3f2f; }
+
+        /* メッセージログ */
+        #log {
+            position: absolute; top: 60px; width: 100%;
+            text-align: center; font-size: 14px; color: #fff;
+            text-shadow: 0 1px 2px #000;
+            pointer-events: none;
+            height: 20px;
+        }
+
+        /* 進化通知 */
+        #evolution-overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.9);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            cursor: pointer; position: relative; transition: 0.1s;
-            box-shadow: 0 4px 0 #222;
+            z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.5s;
         }
-        .btn:active { transform: translateY(4px); box-shadow: none; background: #555; }
-        .btn.disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); transform: none; box-shadow: none;}
-        .cost { color: #ffff00; font-size: 14px; margin-top: 5px; }
-        .name { font-size: 16px; font-weight: bold; }
-        
-        #btn-upgrade { background: #ffaa00; border-color: #ffdd00; color: #000; }
-        /* パワーアップ感を出すアニメーション */
-        #btn-upgrade:active { filter: brightness(1.2); }
+        #evo-title { font-size: 30px; color: #ffd700; margin-bottom: 20px; font-family: 'Press Start 2P', cursive; text-align: center; line-height: 1.5;}
+        #evo-desc { font-size: 16px; color: #ccc; margin-bottom: 30px; }
+        #evo-btn { padding: 10px 30px; font-size: 20px; cursor: pointer; background: #fff; border: none; border-radius: 5px; }
 
-        #money-display {
-            position: absolute; top: -60px; left: 20px;
-            color: #ffff00; font-size: 40px; text-shadow: 3px 3px 0 #000;
-            font-family: 'Courier New', monospace; font-weight: bold;
-        }
-
-        /* 警告表示 */
-        #warning-msg {
-            position: absolute; top: 30%; width: 100%; text-align: center;
-            color: red; font-size: 80px; font-weight: bold; 
-            text-shadow: 0 0 10px yellow; display: none; z-index: 50;
-            animation: blink 0.5s infinite alternate;
-        }
-        @keyframes blink { from {opacity: 1;} to {opacity: 0;} }
-
-        /* 終了画面 */
-        #overlay {
-            position: absolute; inset: 0; background: rgba(0,0,0,0.85); z-index: 100;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            color: white; display: none;
-        }
-        #overlay h1 { font-size: 60px; margin: 0; text-transform: uppercase; letter-spacing: 5px; }
-        #restart-btn {
-            margin-top: 30px; padding: 15px 50px; font-size: 24px; cursor: pointer;
-            background: #fff; color: #000; border: none; font-weight: bold;
-            border-radius: 5px;
-        }
-        
-        /* 現在の倍率表示 */
-        #power-display {
-            position: absolute; top: -100px; left: 20px;
-            color: #ff33ff; font-size: 24px; text-shadow: 2px 2px 0 #000;
-            font-weight: bold; display: none;
-        }
     </style>
 </head>
 <body>
 
-    <div id="warning-msg">WARNING!!<br>BOSS APPROACHING</div>
-
-    <div id="ui-layer">
-        <div id="power-display">POWER: x1.0</div>
-        <div id="money-display">MONEY: $0</div>
-        
-        <div class="btn" id="btn-soldier" onclick="spawnPlayerUnit('soldier')">
-            <div class="name">SOLDIER</div>
-            <div class="cost">$50</div>
-        </div>
-        
-        <div class="btn" id="btn-tank" onclick="spawnPlayerUnit('tank')">
-            <div class="name">TANK</div>
-            <div class="cost">$200</div>
+    <div id="game-container">
+        <div id="header">
+            <div class="stat-box">LV: <span id="val-lv">1</span></div>
+            <div class="stat-box val-str">STR: <span id="val-str">0</span></div>
+            <div class="stat-box val-int">INT: <span id="val-int">0</span></div>
+            <div class="stat-box val-luck">LUCK: <span id="val-luck">0</span></div>
         </div>
 
-        <div class="btn" id="btn-sniper" onclick="spawnPlayerUnit('sniper')">
-            <div class="name">SNIPER</div>
-            <div class="cost">$350</div>
+        <div id="canvas-wrapper" onclick="petCreature(event)">
+            <div id="log">育成を開始します...</div>
+            <canvas id="gameCanvas"></canvas>
+            <div id="hp-container"><div id="hp-bar"></div></div>
         </div>
 
-        <div style="border-left: 2px solid #666; height: 60px; margin: 0 10px;"></div>
+        <div id="controls">
+            <button class="btn" id="btn-str" onclick="train('str')">⚔️ 特訓 (STR)<span>HP -15</span></button>
+            <button class="btn" id="btn-int" onclick="train('int')">📚 瞑想 (INT)<span>HP -15</span></button>
+            <button class="btn" id="btn-luck" onclick="train('luck')">🎲 探索 (LUCK)<span>HP -15</span></button>
+            <button class="btn" id="btn-eat" onclick="eat()">🍖 食事 (Heal)<span>HP +40</span></button>
+        </div>
 
-        <div class="btn" id="btn-upgrade" onclick="upgradeWallet()">
-            <div class="name">POWER UP</div>
-            <div class="cost" id="upg-cost">$500</div>
+        <div id="evolution-overlay">
+            <div id="evo-title">EVOLUTION!</div>
+            <div id="evo-desc">新たな姿へ進化しました</div>
+            <button id="evo-btn" onclick="closeOverlay()">OK</button>
         </div>
     </div>
-
-    <div id="overlay">
-        <h1 id="result-text">VICTORY</h1>
-        <button id="restart-btn" onclick="location.reload()">PLAY AGAIN</button>
-    </div>
-
-    <canvas id="gameCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        const UNIT_TYPES = {
-            soldier: { cost: 50,  hp: 60,  dmg: 12, range: 40,  speed: 2,   reload: 40,  bounty: 30,  color: '#33ff33', w: 10, h: 20 },
-            tank:    { cost: 200, hp: 450, dmg: 45, range: 70,  speed: 1,   reload: 100, bounty: 150, color: '#3366ff', w: 40, h: 30 },
-            sniper:  { cost: 350, hp: 50,  dmg: 90, range: 280, speed: 1.5, reload: 120, bounty: 200, color: '#ff33ff', w: 10, h: 25 }
+        // Canvasサイズ調整
+        const rect = document.getElementById('canvas-wrapper').getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+
+        // ゲーム状態
+        let stats = {
+            lv: 1,
+            exp: 0,
+            nextExp: 3, // 最初はすぐ進化
+            hp: 100,
+            maxHp: 100,
+            str: 5,
+            int: 5,
+            luck: 5
         };
 
-        let gameState = 'playing';
+        // 生き物の定義
+        let creature = {
+            type: 'blob', // blob, fire, water, leaf, gold, dark, god
+            name: 'プチ精霊',
+            color: '#00ccff',
+            size: 40,
+            eyeSize: 4,
+            pulseSpeed: 0.05,
+            particles: []
+        };
+        
         let frame = 0;
-        let money = 1000; 
-        let moneyRate = 5; 
-        let upgradeCost = 500;
-        
-        // ★プレイヤー軍の強さ倍率
-        let playerPowerMult = 1.0;
+        let isAnimating = true;
 
-        const GROUND_Y = window.innerHeight - 180;
-        
-        let units = [];
-        let particles = [];
-        let projectiles = [];
-        let floatingTexts = [];
-        let boss = null;
-        let bossSpawned = false;
+        // 進化ツリー定義
+        const EVOLUTIONS = {
+            'blob': { next: 5, desc: "まだ何も知らない純粋な精霊" },
+            // 第2段階
+            'warrior': { color: '#ff4444', name: 'イフリート', desc: "闘争本能に目覚めた炎の精霊" },
+            'mage':    { color: '#4444ff', name: 'ウンディーネ', desc: "知性を宿した水の精霊" },
+            'thief':   { color: '#ffff44', name: 'トレジャー', desc: "富と運を司る黄金の精霊" },
+            // 第3段階 (最終)
+            'demon':   { color: '#880000', name: '魔神アシュラ', desc: "力を極めし破壊の化身" },
+            'sage':    { color: '#8844ff', name: '大賢者', desc: "宇宙の真理に到達した存在" },
+            'joker':   { color: '#00ff00', name: 'トリックスター', desc: "運命すら騙す幻影の王" },
+            'hero':    { color: '#ffffff', name: '星の救世主', desc: "バランスよく育った奇跡の存在" }
+        };
 
-        const basePlayer = { x: 50, hp: 5000, maxHp: 5000, team: 'player', color: '#00ccff', w:60 };
-        const baseEnemy = { x: window.innerWidth - 100, hp: 5000, maxHp: 5000, team: 'enemy', color: '#ff3333', w:60 };
+        // --- メインループ ---
+        function loop() {
+            if(!isAnimating) return;
+            frame++;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            baseEnemy.x = canvas.width - 100;
+            drawCreature();
+            updateParticles();
+            
+            requestAnimationFrame(loop);
         }
-        window.addEventListener('resize', resize);
-        resize();
+        loop();
 
-        // --- Class Definitions ---
-        class Unit {
-            constructor(type, team) {
-                const data = UNIT_TYPES[type];
-                this.type = type;
-                this.team = team;
-                
-                // ★ここで倍率適用
-                // 基本の1.5倍バフ x アップグレード倍率
-                let buff = (team === 'player') ? (1.5 * playerPowerMult) : 1.0; 
-                
-                this.maxHp = data.hp * buff;
-                this.hp = this.maxHp;
-                this.dmg = data.dmg * buff;
-                this.range = data.range;
-                this.speed = data.speed;
-                this.reloadTime = data.reload;
-                this.color = data.color;
-                this.w = data.w;
-                this.h = data.h;
-                this.bounty = data.bounty;
-                this.cooldown = 0;
-                this.state = 'move';
-                this.dead = false;
-
-                if (team === 'player') {
-                    this.x = basePlayer.x + 60;
-                    this.vx = this.speed;
-                    // パワーアップしてる時は大きくする演出
-                    if (playerPowerMult > 2) {
-                        this.w *= 1.2; this.h *= 1.2; 
-                    }
-                } else {
-                    this.x = baseEnemy.x - 60;
-                    this.vx = -this.speed;
-                }
-                this.y = GROUND_Y - this.h;
+        // --- 描画ロジック (プロシージャルアニメーション) ---
+        function drawCreature() {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2 + Math.sin(frame * creature.pulseSpeed) * 10;
+            
+            // 本体（揺らぐ円）
+            ctx.fillStyle = creature.color;
+            ctx.beginPath();
+            
+            // 生き物っぽく頂点を動かす
+            const points = 12;
+            for(let i=0; i<=points; i++) {
+                const angle = (i / points) * Math.PI * 2;
+                // ノイズを加える
+                const rOffset = Math.sin(frame * 0.1 + i * 1.5) * 3 + Math.sin(frame * 0.05) * (stats.lv * 2); 
+                const r = creature.size + rOffset;
+                const x = cx + Math.cos(angle) * r;
+                const y = cy + Math.sin(angle) * r;
+                if(i===0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
             }
+            ctx.closePath();
+            
+            // 光彩エフェクト
+            ctx.shadowBlur = 20 + Math.sin(frame * 0.1) * 10;
+            ctx.shadowColor = creature.color;
+            ctx.fill();
+            ctx.shadowBlur = 0;
 
-            update() {
-                if(this.dead) return;
-                let target = null;
-                let minDist = 9999;
-                const enemyTeam = (this.team === 'player') ? 'enemy' : 'player';
-                
-                const targets = [...units];
-                if (boss && boss.hp > 0 && this.team === 'player') targets.push(boss);
-
-                for(let u of targets) {
-                    if (u.team === enemyTeam && !u.dead) {
-                        const dist = Math.abs(u.x - this.x);
-                        if (dist < minDist) { minDist = dist; target = u; }
-                    }
-                }
-                const baseTarget = (this.team === 'player') ? baseEnemy : basePlayer;
-                const baseDist = Math.abs(baseTarget.x - this.x);
-                if (baseDist < minDist) { minDist = baseDist; target = baseTarget; target.isBase = true; }
-
-                if (target && minDist <= this.range) {
-                    this.state = 'attack';
-                    this.cooldown--;
-                    if (this.cooldown <= 0) {
-                        this.attack(target);
-                        this.cooldown = this.reloadTime;
-                    }
-                } else {
-                    this.state = 'move';
-                    this.x += this.vx;
-                    this.cooldown = Math.max(0, this.cooldown - 1);
-                }
+            // 目
+            ctx.fillStyle = 'white';
+            const eyeOffset = Math.sin(frame * 0.05) * 2;
+            
+            // 目の形や数を進化によって変える
+            if (creature.type === 'mage' || creature.type === 'sage') {
+                 // 1つ目
+                ctx.beginPath(); ctx.arc(cx, cy - 5, creature.eyeSize * 1.5, 0, Math.PI * 2); ctx.fill();
+            } else if (creature.type === 'demon') {
+                // 怖い目
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath(); ctx.moveTo(cx-15, cy-10); ctx.lineTo(cx-5, cy); ctx.lineTo(cx-15, cy+5); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(cx+15, cy-10); ctx.lineTo(cx+5, cy); ctx.lineTo(cx+15, cy+5); ctx.fill();
+            } else {
+                // 普通の目
+                ctx.beginPath(); ctx.arc(cx - 12, cy - 5 + eyeOffset, creature.eyeSize, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 12, cy - 5 + eyeOffset, creature.eyeSize, 0, Math.PI * 2); ctx.fill();
             }
-
-            attack(target) {
-                projectiles.push(new Projectile(this.x, this.y + this.h/2, target, this.dmg, this.team, 'bullet'));
-            }
-
-            takeDamage(amount, attackerTeam) {
-                this.hp -= amount;
-                spawnParticles(this.x, this.y + this.h/2, 2, '#fff');
-                if (this.hp <= 0 && !this.dead) {
-                    this.dead = true;
-                    if (this.team === 'enemy' && attackerTeam === 'player') {
-                        money += this.bounty;
-                        spawnFloatingText(this.x, this.y - 20, "+$" + this.bounty, '#ffff00');
-                    }
-                }
-            }
-
-            draw() {
-                ctx.fillStyle = (this.team === 'enemy') ? '#ff5555' : this.color;
-                
-                // 強化されている場合、オーラを描画
-                if (this.team === 'player' && playerPowerMult > 1.0) {
-                    ctx.save();
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = 'gold';
-                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                    ctx.restore();
-                } else {
-                    ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                }
-
-                const pct = Math.max(0, this.hp / this.maxHp);
-                ctx.fillStyle = '#444'; ctx.fillRect(this.x-10, this.y-8, 20, 4);
-                ctx.fillStyle = (this.team==='player')?'#00ff00':'#f00'; ctx.fillRect(this.x-10, this.y-8, 20*pct, 4);
+            
+            // レベルアップエフェクト
+            if (frame % 60 === 0 && stats.exp > 0) {
+                 // 少し光らせるなど
             }
         }
 
-        class Boss {
-            constructor() {
-                this.x = baseEnemy.x; this.y = GROUND_Y - 120;
-                this.w = 100; this.h = 120;
-                this.team = 'enemy';
-                this.hp = 5000;
-                this.maxHp = 5000;
-                this.color = '#800080';
-                this.dead = false;
-                this.state = 'walk'; 
-                this.targetX = baseEnemy.x - 200; 
-                this.actionTimer = 0;
-                this.spinAngle = 0;
-            }
-            update() {
-                if (this.dead) return;
-                if (this.state === 'walk') {
-                    if (this.x > this.targetX) this.x -= 0.5;
-                    else this.state = 'combat';
-                } else if (this.state === 'combat') {
-                    this.actionTimer++;
-                    if (this.actionTimer > 150) {
-                        Math.random() < 0.5 ? this.performSpinSlash() : this.performMissile();
-                        this.actionTimer = 0;
-                    }
-                }
-                if (this.spinAngle > 0) this.spinAngle -= 0.2;
-            }
-            performSpinSlash() {
-                this.spinAngle = Math.PI * 2;
-                spawnFloatingText(this.x, this.y - 130, "SPIN SLASH!!", "#ff0000");
-                units.forEach(u => {
-                    if (u.team === 'player' && Math.abs(u.x - this.x) < 150) {
-                        u.takeDamage(100, 'enemy'); u.x -= 100;
-                    }
+        // --- パーティクルシステム ---
+        function spawnParticles(x, y, color, count) {
+            for(let i=0; i<count; i++) {
+                creature.particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    life: 1.0,
+                    color: color
                 });
             }
-            performMissile() {
-                spawnFloatingText(this.x, this.y - 130, "MISSILE!!", "#ffaa00");
-                let target = basePlayer;
-                const playerUnits = units.filter(u => u.team === 'player');
-                if (playerUnits.length > 0) target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
-                projectiles.push(new Projectile(this.x, this.y + 40, target, 200, 'enemy', 'missile'));
-            }
-            takeDamage(amount, attackerTeam) {
-                this.hp -= amount;
-                spawnParticles(this.x + (Math.random()-0.5)*80, this.y + (Math.random())*100, 2, '#fff');
-                if (this.hp <= 0 && !this.dead) {
-                    this.dead = true; money += 5000;
-                    spawnFloatingText(this.x, this.y, "BOSS DEFEATED!", "#gold");
-                    baseEnemy.hp = 0; 
-                }
-            }
-            draw() {
-                ctx.fillStyle = this.color; ctx.fillRect(this.x - this.w/2, this.y, this.w, this.h);
-                ctx.fillStyle = '#000'; ctx.fillRect(this.x - 20, this.y + 30, 10, 10); ctx.fillRect(this.x + 10, this.y + 30, 10, 10);
-                ctx.fillStyle = 'red'; ctx.fillRect(this.x - 30, this.y + 60, 60, 5);
-                const pct = Math.max(0, this.hp / this.maxHp);
-                ctx.fillStyle = '#000'; ctx.fillRect(this.x - 60, this.y - 20, 120, 15);
-                ctx.fillStyle = 'purple'; ctx.fillRect(this.x - 60, this.y - 20, 120 * pct, 15);
-                ctx.strokeStyle = '#fff'; ctx.strokeRect(this.x - 60, this.y - 20, 120, 15);
-                ctx.fillStyle = '#fff'; ctx.font = "bold 12px Arial"; ctx.fillText("BOSS", this.x - 15, this.y - 25);
-                if (this.spinAngle > 0.1) {
-                    ctx.save(); ctx.translate(this.x, this.y + this.h/2); ctx.rotate(this.spinAngle);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.beginPath(); ctx.arc(0, 0, 140, 0, Math.PI*2); ctx.fill();
-                    ctx.strokeStyle = 'red'; ctx.lineWidth = 10; ctx.stroke(); ctx.restore();
-                }
+        }
+        function updateParticles() {
+            for(let i=creature.particles.length-1; i>=0; i--) {
+                let p = creature.particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.03;
+                
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 4, 4);
+                ctx.globalAlpha = 1.0;
+
+                if(p.life <= 0) creature.particles.splice(i, 1);
             }
         }
 
-        class Projectile {
-            constructor(x, y, target, dmg, team, type) {
-                this.x = x; this.y = y; this.target = target;
-                this.dmg = dmg; this.team = team; this.type = type; this.active = true;
-                this.speed = (type === 'missile') ? 6 : 12;
-                const tx = (target.isBase) ? target.x : target.x;
-                const ty = (target.isBase) ? (GROUND_Y - 40) : (target.y + 10);
-                const dx = tx - x; const dy = ty - y;
-                const d = Math.sqrt(dx*dx + dy*dy);
-                this.vx = (dx/d) * this.speed; this.vy = (dy/d) * this.speed;
-            }
-            update() {
-                this.x += this.vx; this.y += this.vy;
-                if (this.type === 'missile') spawnParticles(this.x, this.y, 1, 'gray');
-                let hit = false;
-                let distThreshold = (this.type === 'missile') ? 30 : 20;
-                let tx = this.target.x;
-                let ty = this.target.y + (this.target.h ? this.target.h/2 : 0);
-                if (this.target.isBase) ty = GROUND_Y - 50;
-                if (Math.abs(this.x - tx) < distThreshold && Math.abs(this.y - ty) < distThreshold) hit = true;
-                else if (this.y > GROUND_Y) hit = true;
+        // --- ゲームロジック ---
+        function updateUI() {
+            document.getElementById('val-lv').innerText = stats.lv;
+            document.getElementById('val-str').innerText = stats.str;
+            document.getElementById('val-int').innerText = stats.int;
+            document.getElementById('val-luck').innerText = stats.luck;
+            
+            const hpPct = Math.max(0, (stats.hp / stats.maxHp) * 100);
+            const hpBar = document.getElementById('hp-bar');
+            hpBar.style.width = hpPct + '%';
+            hpBar.style.background = hpPct > 20 ? '#00ff88' : '#ff0000';
 
-                if (hit) {
-                    this.active = false;
-                    if (this.type === 'missile') {
-                        spawnParticles(this.x, this.y, 20, 'orange');
-                        if (this.target && this.target.hp > 0) this.target.isBase ? (this.target.hp -= this.dmg) : this.target.takeDamage(this.dmg, this.team);
-                        units.forEach(u => { if (u.team !== this.team && Math.abs(u.x - this.x) < 80) u.takeDamage(this.dmg / 2, this.team); });
+            // ボタン制御
+            const disabled = stats.hp < 15;
+            document.getElementById('btn-str').disabled = disabled;
+            document.getElementById('btn-int').disabled = disabled;
+            document.getElementById('btn-luck').disabled = disabled;
+            document.getElementById('btn-eat').disabled = stats.hp >= stats.maxHp;
+        }
+
+        function log(msg) {
+            const el = document.getElementById('log');
+            el.innerText = msg;
+            el.style.opacity = 1;
+            // アニメーションリセット用
+            el.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 300 });
+        }
+
+        function train(type) {
+            if (stats.hp < 15) return;
+            
+            stats.hp -= 15;
+            stats.exp++;
+            
+            // ステータス上昇
+            const gain = Math.floor(Math.random() * 3) + 2; // 2~4
+            stats[type] += gain;
+
+            // 演出
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            let color = '#fff';
+            if(type === 'str') { log(`筋トレ完了！ STR +${gain}`); color = '#ff5555'; }
+            if(type === 'int') { log(`勉強しました。 INT +${gain}`); color = '#55aaff'; }
+            if(type === 'luck') { log(`何かを拾った！ LUCK +${gain}`); color = '#ffdd55'; }
+            
+            spawnParticles(cx, cy, color, 10);
+            
+            // 進化チェック
+            if (stats.exp >= stats.nextExp) {
+                levelUp();
+            }
+            updateUI();
+        }
+
+        function eat() {
+            if (stats.hp >= stats.maxHp) return;
+            stats.hp = Math.min(stats.maxHp, stats.hp + 40);
+            log("ご飯を食べました。HP回復！");
+            spawnParticles(canvas.width/2, canvas.height/2, '#00ff00', 15);
+            updateUI();
+        }
+
+        function petCreature(e) {
+            // クリックで撫でる
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            spawnParticles(x, y, '#ff99cc', 5);
+            log("なでなで...");
+        }
+
+        function levelUp() {
+            stats.lv++;
+            stats.exp = 0;
+            stats.nextExp = Math.floor(stats.nextExp * 1.5);
+            stats.maxHp += 20;
+            stats.hp = stats.maxHp;
+
+            // 進化判定ロジック
+            // LV 5で第2形態、LV 10で最終形態
+            let newType = null;
+
+            if (stats.lv === 5) {
+                if (stats.str > stats.int && stats.str > stats.luck) newType = 'warrior';
+                else if (stats.int > stats.str && stats.int > stats.luck) newType = 'mage';
+                else newType = 'thief';
+            }
+            else if (stats.lv === 10) {
+                // 最終進化分岐
+                const base = creature.type;
+                if (base === 'warrior') newType = 'demon'; // 筋力ルート
+                else if (base === 'mage') newType = 'sage'; // 知力ルート
+                else if (base === 'thief') newType = 'joker'; // 運ルート
+                else {
+                    // バランス型（隠し）
+                    if (Math.abs(stats.str - stats.int) < 10 && Math.abs(stats.int - stats.luck) < 10) {
+                        newType = 'hero';
                     } else {
-                        spawnParticles(this.x, this.y, 3, 'yellow');
-                        if (this.target && !this.target.dead) this.target.isBase ? (this.target.hp -= this.dmg) : this.target.takeDamage(this.dmg, this.team);
+                         // デフォルト進化
+                         if(stats.str >= stats.int) newType = 'demon';
+                         else newType = 'sage';
                     }
                 }
             }
-            draw() {
-                if (this.type === 'missile') {
-                    ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(this.x, this.y, 8, 0, Math.PI*2); ctx.fill();
-                    ctx.fillStyle = 'orange'; ctx.fillRect(this.x - this.vx*2, this.y - this.vy*2, 6, 6);
-                } else {
-                    ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
-                }
-            }
-        }
-        
-        class FloatingText {
-            constructor(x, y, text, color) { this.x=x; this.y=y; this.text=text; this.color=color; this.life=1.0; this.vy=-1.5; }
-            update() { this.y+=this.vy; this.life-=0.02; }
-            draw() {
-                ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color;
-                ctx.font = "bold 24px Arial"; ctx.strokeStyle="black"; ctx.lineWidth=3;
-                ctx.strokeText(this.text, this.x, this.y); ctx.fillText(this.text, this.x, this.y);
-                ctx.globalAlpha = 1.0;
-            }
-        }
-        class Particle {
-            constructor(x, y, color) { this.x=x; this.y=y; this.color=color; this.vx=(Math.random()-0.5)*6; this.vy=(Math.random()-0.5)*6; this.life=1.0; }
-            update() { this.x+=this.vx; this.y+=this.vy; this.life-=0.05; }
-            draw() { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle=this.color; ctx.fillRect(this.x, this.y, 5, 5); ctx.globalAlpha=1.0; }
-        }
-        function spawnParticles(x, y, c, col) { for(let i=0; i<c; i++) particles.push(new Particle(x,y,col)); }
-        function spawnFloatingText(x, y, txt, col) { floatingTexts.push(new FloatingText(x, y, txt, col)); }
 
-        function spawnPlayerUnit(type) {
-            if (gameState !== 'playing') return;
-            const cost = UNIT_TYPES[type].cost;
-            if (money >= cost) { money -= cost; units.push(new Unit(type, 'player')); }
-        }
-
-        // ★★★ パワーアップグレード実装 ★★★
-        function upgradeWallet() {
-            if (money >= upgradeCost) {
-                money -= upgradeCost;
-                
-                // お金スピードUP (前回同様)
-                moneyRate += 100; 
-                
-                // パワー倍率UP
-                playerPowerMult *= 1.5;
-
-                upgradeCost += 500;
-                document.getElementById('upg-cost').innerText = "$" + upgradeCost;
-                
-                // 現在の倍率を表示
-                const disp = document.getElementById('power-display');
-                disp.style.display = 'block';
-                disp.innerText = "POWER: x" + playerPowerMult.toFixed(1);
-                
-                spawnFloatingText(basePlayer.x, basePlayer.y - 100, "POWER UP x1.5!!", "#ff00ff");
+            if (newType) {
+                evolve(newType);
+            } else {
+                log(`レベルアップ！ Lv.${stats.lv}`);
+                creature.size += 5; // 少し大きくなる
+                spawnParticles(canvas.width/2, canvas.height/2, '#ffffff', 30);
             }
         }
 
-        let enemyTimer = 0;
-        function updateGame() {
-            if (gameState !== 'playing') return;
-            frame++;
-            if (frame % 6 === 0) money += moneyRate;
-            document.getElementById('money-display').innerText = "MONEY: $" + Math.floor(money);
+        function evolve(typeKey) {
+            const data = EVOLUTIONS[typeKey];
+            creature.type = typeKey;
+            creature.color = data.color;
+            creature.name = data.name;
+            creature.size += 15;
             
-            ['soldier', 'tank', 'sniper'].forEach(type => {
-                const btn = document.getElementById('btn-'+type);
-                if (money >= UNIT_TYPES[type].cost) btn.classList.remove('disabled'); else btn.classList.add('disabled');
-            });
-            const upgBtn = document.getElementById('btn-upgrade');
-            if (money >= upgradeCost) upgBtn.classList.remove('disabled'); else upgBtn.classList.add('disabled');
+            // オーバーレイ表示
+            const ol = document.getElementById('evolution-overlay');
+            ol.style.opacity = 1;
+            ol.style.pointerEvents = 'auto';
+            document.getElementById('evo-title').innerText = data.name;
+            document.getElementById('evo-title').style.color = data.color;
+            document.getElementById('evo-desc').innerText = data.desc;
+            
+            spawnParticles(canvas.width/2, canvas.height/2, data.color, 100);
+        }
 
-            enemyTimer++;
-            let spawnInterval = 150 - (frame / 500); 
-            if(spawnInterval < 80) spawnInterval = 80;
-            if (enemyTimer > spawnInterval) {
-                const r = Math.random();
-                let type = 'soldier';
-                if (r < 0.3) type = 'tank';
-                if (r < 0.1) type = 'sniper';
-                units.push(new Unit(type, 'enemy'));
-                enemyTimer = 0;
+        function closeOverlay() {
+            const ol = document.getElementById('evolution-overlay');
+            ol.style.opacity = 0;
+            ol.style.pointerEvents = 'none';
+            // ゲームクリア判定
+            if (stats.lv >= 10) {
+                log("究極進化を達成しました！ありがとう！");
+                // これ以上は進化しない
+                stats.nextExp = 9999; 
             }
-
-            if (!bossSpawned) {
-                const invasionLine = canvas.width * 0.75;
-                if (units.some(u => u.team === 'player' && u.x > invasionLine)) {
-                    bossSpawned = true; boss = new Boss();
-                    const w = document.getElementById('warning-msg');
-                    w.style.display = 'block'; setTimeout(() => w.style.display = 'none', 3000);
-                }
-            }
-
-            units.forEach(u => u.update()); units = units.filter(u => !u.dead);
-            if (boss) { boss.update(); if (boss.dead) boss = null; }
-            projectiles.forEach(p => p.update()); projectiles = projectiles.filter(p => p.active);
-            particles.forEach(p => p.update()); particles = particles.filter(p => p.life > 0);
-            floatingTexts.forEach(t => t.update()); floatingTexts = floatingTexts.filter(t => t.life > 0);
-            if (basePlayer.hp <= 0) endGame(false);
-            if (baseEnemy.hp <= 0) endGame(true);
         }
 
-        function draw() {
-            const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            grd.addColorStop(0, "#00BFFF"); grd.addColorStop(1, "#87CEEB");
-            ctx.fillStyle = grd; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#2d8f2d'; ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
-            drawBase(basePlayer); drawBase(baseEnemy);
-            units.forEach(u => u.draw());
-            if (boss) boss.draw();
-            projectiles.forEach(p => p.draw());
-            particles.forEach(p => p.draw());
-            floatingTexts.forEach(t => t.draw());
-            requestAnimationFrame(() => { updateGame(); draw(); });
-        }
+        updateUI();
 
-        function drawBase(base) {
-            ctx.fillStyle = base.color; ctx.beginPath(); ctx.arc(base.x, GROUND_Y, 70, Math.PI, 0); ctx.fill();
-            const pct = Math.max(0, base.hp / base.maxHp);
-            ctx.fillStyle = '#000'; ctx.fillRect(base.x - 50, GROUND_Y - 110, 100, 12);
-            ctx.fillStyle = (pct > 0.3) ? '#00ff00' : 'red'; ctx.fillRect(base.x - 50, GROUND_Y - 110, 100 * pct, 12);
-            ctx.strokeStyle = '#fff'; ctx.strokeRect(base.x - 50, GROUND_Y - 110, 100, 12);
-        }
-
-        function endGame(win) {
-            gameState = (win) ? 'win' : 'lose';
-            const ov = document.getElementById('overlay');
-            const txt = document.getElementById('result-text');
-            ov.style.display = 'flex';
-            if (win) { txt.innerText = "MISSION COMPLETE!!"; txt.style.color = "#00ffcc"; } 
-            else { txt.innerText = "DEFEATED..."; txt.style.color = "#ff3333"; }
-        }
-
-        draw();
     </script>
 </body>
 </html>
