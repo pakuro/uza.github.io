@@ -2,229 +2,466 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Simple Gacha RPG (Fixed)</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button Action RPG</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        /* --- デザイン部分：シンプルかつ崩れにくい設計 --- */
+        /* 全体のスタイル：スマホアプリ風 */
         body {
-            background-color: #222;
-            color: white;
+            margin: 0; padding: 0;
+            background: #222; color: white;
             font-family: sans-serif;
-            text-align: center;
-            margin: 0;
-            padding: 20px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh;
+            overflow: hidden; /* スクロール禁止 */
+            user-select: none; /* テキスト選択禁止 */
+            -webkit-user-select: none;
         }
 
-        /* ゲーム画面の枠 */
-        #game-box {
-            max-width: 400px;
-            margin: 0 auto;
-            background: #333;
-            padding: 20px;
-            border: 2px solid #555;
-            border-radius: 10px;
-        }
-
-        /* 画面の切り替え用 */
-        .screen { display: none; }
-        .active { display: block; }
-
-        /* ボタンのデザイン */
-        button {
-            background: #e6b422;
-            color: #000;
-            border: none;
-            padding: 12px 24px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 10px;
-            touch-action: manipulation; /* スマホでのタップ遅延防止 */
-        }
-        button:active { background: #c59b10; transform: translateY(2px); }
-        button.secondary { background: #666; color: #fff; font-size: 14px; }
-
-        /* ステータス表示 */
-        .status-bar {
+        /* ゲーム画面 */
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 600px;
+            flex-grow: 1;
             background: #000;
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            display: flex;
-            justify-content: space-around;
+            border: 2px solid #555;
+            display: flex; justify-content: center; align-items: center;
+        }
+        canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+        /* UIオーバーレイ（HPバーなど） */
+        .ui-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; padding: 10px;
+            pointer-events: none; /* クリック透過 */
+            box-sizing: border-box;
+            display: flex; justify-content: space-between;
+        }
+        .bar-container { background: #333; width: 100px; height: 10px; border: 1px solid #fff; margin-bottom: 5px; }
+        .bar-fill { height: 100%; transition: width 0.2s; }
+
+        /* コントローラーエリア */
+        #controller-area {
+            width: 100%; max-width: 600px;
+            height: 220px;
+            background: #333;
+            border-top: 4px solid #555;
+            display: flex; justify-content: space-between; padding: 10px;
+            box-sizing: border-box;
         }
 
-        /* ガチャ結果など */
-        .card {
-            border: 1px solid #fff;
-            padding: 10px;
-            margin: 5px;
-            display: inline-block;
-            width: 80px;
-            background: #444;
+        /* 十字キー */
+        .d-pad {
+            display: grid;
+            grid-template-columns: 60px 60px 60px;
+            grid-template-rows: 60px 60px 60px;
+            gap: 5px;
+            align-self: center;
         }
-        .ssr { border: 2px solid gold; color: gold; background: #330000; }
+        /* アクションボタン群 */
+        .action-pad {
+            display: grid;
+            grid-template-columns: 70px 70px;
+            grid-template-rows: 60px 60px 50px;
+            gap: 8px;
+            align-self: center;
+        }
+        
+        /* 共通ボタンデザイン */
+        .c-btn {
+            background: #444; border: 2px solid #666; border-radius: 10px;
+            color: white; font-size: 24px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #222;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .c-btn:active, .c-btn.pressed {
+            transform: translateY(4px); box-shadow: 0 0 0 #222; background: #666;
+        }
+        
+        /* 特定ボタンの色 */
+        .btn-atk { background: #d32f2f; border-color: #ff5252; } /* 赤 */
+        .btn-skill { background: #1976d2; border-color: #448aff; } /* 青 */
+        .btn-item { background: #388e3c; border-color: #66bb6a; font-size: 14px; flex-direction: column;} /* 緑 */
+        .btn-menu { background: #fbc02d; color: #000; font-size: 14px; height: 40px;}
 
-        /* エラー表示エリア */
-        #error-log { color: red; background: #fff; display: none; margin-top: 20px; padding: 10px; }
+        /* メニュー画面（ポップアップ） */
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 100;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            pointer-events: auto;
+        }
+        .modal.active { display: flex; }
+        .scroll-box {
+            width: 80%; max-height: 60%; overflow-y: auto;
+            background: #222; border: 2px solid gold; padding: 10px; margin: 10px;
+        }
+        .item-row { padding: 10px; border-bottom: 1px solid #444; cursor: pointer; display: flex; justify-content: space-between; }
+        .item-row:hover { background: #444; }
+
     </style>
 </head>
 <body>
 
-    <div id="game-box">
-        <div class="status-bar">
-            <span>💎石: <b id="ui-gem">0</b></span>
-            <span>💰金: <b id="ui-gold">0</b></span>
-        </div>
-
-        <div id="screen-home" class="screen active">
-            <h1>🏰 ホーム</h1>
-            <p>最強のパーティを作ろう！</p>
-            <br>
-            <button onclick="gotoGacha()">💎 ガチャを引く</button><br>
-            <button onclick="gotoBattle()">⚔️ バトルへ行く</button>
-        </div>
-
-        <div id="screen-gacha" class="screen">
-            <h1>🔮 召喚の館</h1>
-            <p>1回 💎300個</p>
-            <div id="gacha-display" style="min-height: 100px; margin-bottom:10px;">
-                (ここに結果が出ます)
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="ui-overlay">
+            <div>
+                <div style="font-size:12px;">HP</div>
+                <div class="bar-container"><div class="bar-fill" id="hp-bar" style="background:#f44; width:100%"></div></div>
+                <div style="font-size:12px;">SP</div>
+                <div class="bar-container"><div class="bar-fill" id="sp-bar" style="background:#44f; width:0%"></div></div>
             </div>
-            <button onclick="pullGacha()">10連召喚する</button><br>
-            <button class="secondary" onclick="gotoHome()">戻る</button>
+            <div style="text-align:right;">
+                <div>💎 <span id="ui-gem">0</span></div>
+                <div style="margin-top:5px;">
+                    <button class="c-btn btn-menu" onclick="toggleMenu('gacha')">ガチャ</button>
+                    <button class="c-btn btn-menu" onclick="toggleMenu('equip')" style="margin-top:5px;">装備</button>
+                </div>
+            </div>
         </div>
 
-        <div id="screen-battle" class="screen">
-            <h1>🐲 バトル</h1>
-            <div style="font-size: 60px; margin: 20px;" id="enemy-icon">👿</div>
-            <p>敵のHP: <b id="enemy-hp">100</b></p>
-            <hr>
-            <p>味方の攻撃力: <b id="party-power">0</b></p>
-            <button onclick="attack()">👊 攻撃する</button><br>
-            <button class="secondary" onclick="gotoHome()">逃げる</button>
+        <div id="modal-gacha" class="modal">
+            <h2>🔮 武器ガチャ</h2>
+            <p>1回 💎100</p>
+            <div id="gacha-result" style="height:50px; margin:20px; font-size:20px; color:gold;"></div>
+            <button class="c-btn btn-atk" style="width:200px;" onclick="pullGacha()">💎100 引く</button>
+            <br>
+            <button class="c-btn" style="width:100px; height:40px; font-size:14px;" onclick="closeModal()">閉じる</button>
         </div>
 
-        <div id="screen-result" class="screen">
-            <h1 style="color:gold">VICTORY!</h1>
-            <p>報酬: 💎300 GET!</p>
-            <button onclick="gotoHome()">ホームへ</button>
+        <div id="modal-equip" class="modal">
+            <h2>🎒 装備変更</h2>
+            <div id="current-equip" style="margin-bottom:10px; color:#aaa;"></div>
+            <div class="scroll-box" id="inventory-list"></div>
+            <button class="c-btn" style="width:100px; height:40px; font-size:14px;" onclick="closeModal()">閉じる</button>
         </div>
-
     </div>
 
-    <div id="error-log"></div>
+    <div id="controller-area">
+        <div class="d-pad">
+            <div></div>
+            <div class="c-btn" id="btn-up" data-key="up">⬆️</div>
+            <div></div>
+            
+            <div class="c-btn" id="btn-left" data-key="left">⬅️</div>
+            <div class="c-btn" style="background:#222; border:none; box-shadow:none; cursor:default;"></div>
+            <div class="c-btn" id="btn-right" data-key="right">➡️</div>
+            
+            <div></div>
+            <div class="c-btn" id="btn-down" data-key="down">⬇️</div>
+            <div></div>
+        </div>
 
-    <script>
-        // --- エラー監視機能 ---
-        window.onerror = function(msg, url, line) {
-            const log = document.getElementById("error-log");
-            log.style.display = "block";
-            log.innerText = "エラー発生: " + msg + " (行: " + line + ")";
-            alert("プログラムにエラーがあります。\n" + msg);
-        };
+        <div class="action-pad">
+            <div class="c-btn btn-atk" id="btn-atk" style="grid-column: span 2;">⚔️ 攻撃</div>
+            
+            <div class="c-btn btn-skill" id="btn-skill">⚡️</div>
+            <div class="c-btn btn-item" id="btn-heal" onclick="usePotion()">
+                <span>💊</span><span id="ui-pot" style="font-size:10px">x3</span>
+            </div>
+        </div>
+    </div>
 
-        // --- ゲームデータ ---
-        let gems = 3000;
-        let gold = 0;
-        let power = 10; // 初期攻撃力
+<script>
+    // --- ゲーム設定 ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 画面サイズ調整
+    function resize() {
+        const rect = document.getElementById('game-container').getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+    }
+    window.addEventListener('resize', resize);
+    resize();
 
-        // --- 起動時の処理 ---
-        // 画面が読み込まれてからUIを更新する安全策
-        window.onload = function() {
-            try {
-                updateUI();
-                console.log("ゲーム起動成功");
-            } catch (e) {
-                console.error(e);
-                alert("起動に失敗しました");
-            }
-        };
+    // プレイヤーデータ
+    let player = {
+        x: canvas.width/2, y: canvas.height/2, size: 15,
+        color: '#00ffcc',
+        hp: 100, maxHp: 100, sp: 0, maxSp: 100,
+        atk: 5, spd: 4,
+        gems: 500, potions: 3,
+        weapon: { name: '素手', atk: 2, rarity: 'N' },
+        invincible: 0
+    };
 
-        // --- 画面切り替え ---
-        function showScreen(screenId) {
-            // 全ての画面を隠す
-            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-            // 指定した画面だけ出す
-            document.getElementById(screenId).classList.add('active');
+    let enemies = [];
+    let particles = [];
+    let texts = [];
+    let inventory = [];
+    
+    // 入力状態管理
+    let inputState = { up: false, down: false, left: false, right: false };
+
+    // --- コントローラー入力処理 ---
+    const setupBtn = (id, key) => {
+        const btn = document.getElementById(id);
+        const start = (e) => { e.preventDefault(); inputState[key] = true; btn.classList.add('pressed'); };
+        const end = (e) => { e.preventDefault(); inputState[key] = false; btn.classList.remove('pressed'); };
+        
+        btn.addEventListener('mousedown', start);
+        btn.addEventListener('mouseup', end);
+        btn.addEventListener('mouseleave', end); // 範囲外に出た時用
+        btn.addEventListener('touchstart', start);
+        btn.addEventListener('touchend', end);
+    };
+
+    setupBtn('btn-up', 'up');
+    setupBtn('btn-down', 'down');
+    setupBtn('btn-left', 'left');
+    setupBtn('btn-right', 'right');
+
+    // 攻撃ボタン
+    const atkBtn = document.getElementById('btn-atk');
+    const doAttack = (e) => { e.preventDefault(); atkBtn.classList.add('pressed'); playerAttack(); setTimeout(()=>atkBtn.classList.remove('pressed'), 100); };
+    atkBtn.addEventListener('mousedown', doAttack);
+    atkBtn.addEventListener('touchstart', doAttack);
+
+    // 必殺技ボタン
+    const skillBtn = document.getElementById('btn-skill');
+    const doSkill = (e) => { e.preventDefault(); skillBtn.classList.add('pressed'); playerSkill(); setTimeout(()=>skillBtn.classList.remove('pressed'), 100); };
+    skillBtn.addEventListener('mousedown', doSkill);
+    skillBtn.addEventListener('touchstart', doSkill);
+
+
+    // --- ゲームロジック ---
+
+    function playerAttack() {
+        // 前方に攻撃判定を出す
+        // 簡易的に「一番近い敵」に向かって弾を出すオートエイム
+        let target = null;
+        let minDist = 9999;
+        enemies.forEach(e => {
+            const d = Math.hypot(e.x - player.x, e.y - player.y);
+            if(d < minDist) { minDist = d; target = e; }
+        });
+
+        let angle = 0; // デフォルト右
+        if(target) {
+            angle = Math.atan2(target.y - player.y, target.x - player.x);
+        } else {
+            // 移動していればその方向へ
+            if(inputState.left) angle = Math.PI;
+            if(inputState.up) angle = -Math.PI/2;
+            if(inputState.down) angle = Math.PI/2;
         }
 
-        function gotoHome() { showScreen('screen-home'); }
-        function gotoGacha() { 
-            document.getElementById('gacha-display').innerText = "ガチャを回して戦力を上げよう！";
-            showScreen('screen-gacha'); 
-        }
-        function gotoBattle() {
-            // 敵のHPをセット
-            document.getElementById('enemy-hp').innerText = "500";
-            document.getElementById('enemy-icon').innerText = "👿";
-            showScreen('screen-battle');
-        }
+        particles.push({
+            x: player.x, y: player.y,
+            vx: Math.cos(angle) * 8, vy: Math.sin(angle) * 8,
+            life: 20, color: '#fff', size: 8, dmg: player.atk + player.weapon.atk, isAtk: true
+        });
+    }
 
-        // --- UI更新 ---
-        function updateUI() {
-            document.getElementById('ui-gem').innerText = gems;
-            document.getElementById('ui-gold').innerText = gold;
-            document.getElementById('party-power').innerText = power;
-        }
-
-        // --- ガチャ機能 ---
-        function pullGacha() {
-            if (gems < 3000) {
-                alert("石が足りません！バトルで稼いでください。");
-                return;
-            }
-            gems -= 3000;
-
-            const resultsDiv = document.getElementById('gacha-display');
-            resultsDiv.innerHTML = ""; // クリア
-
-            // 10回まわす
-            for(let i=0; i<10; i++) {
-                let r = Math.random();
-                let card = document.createElement("div");
-                card.className = "card";
-                
-                if (r < 0.1) { // 10%でSSR
-                    card.innerText = "SSR 魔王";
-                    card.classList.add("ssr");
-                    power += 100; // 攻撃力アップ
-                } else if (r < 0.4) {
-                    card.innerText = "SR 騎士";
-                    power += 30;
-                } else {
-                    card.innerText = "N 村人";
-                    power += 5;
-                }
-                resultsDiv.appendChild(card);
-            }
+    function playerSkill() {
+        if(player.sp >= 100) {
+            player.sp = 0;
             updateUI();
-        }
-
-        // --- バトル機能 ---
-        function attack() {
-            let ehp = parseInt(document.getElementById('enemy-hp').innerText);
-            
-            // 攻撃！
-            ehp -= power;
-            
-            // 演出（少し揺らす）
-            const icon = document.getElementById('enemy-icon');
-            icon.style.transform = "translateX(5px)";
-            setTimeout(() => icon.style.transform = "translateX(0)", 100);
-
-            if (ehp <= 0) {
-                document.getElementById('enemy-hp').innerText = "0";
-                // 勝利
-                gems += 3000; // 報酬
-                updateUI();
-                showScreen('screen-result');
-            } else {
-                document.getElementById('enemy-hp').innerText = ehp;
+            // 全方位攻撃
+            for(let i=0; i<360; i+=15) {
+                const rad = i * Math.PI / 180;
+                particles.push({
+                    x: player.x, y: player.y,
+                    vx: Math.cos(rad) * 10, vy: Math.sin(rad) * 10,
+                    life: 40, color: 'cyan', size: 5, dmg: (player.atk + player.weapon.atk) * 3, isAtk: true
+                });
             }
+            spawnText(player.x, player.y, "ULTIMATE!", "cyan");
+        } else {
+            spawnText(player.x, player.y, "No SP!", "gray");
+        }
+    }
+
+    function usePotion() {
+        if(player.potions > 0 && player.hp < player.maxHp) {
+            player.potions--;
+            player.hp = Math.min(player.maxHp, player.hp + 50);
+            updateUI();
+            spawnText(player.x, player.y, "Heal!", "#0f0");
+        }
+    }
+
+    function update() {
+        // プレイヤー移動
+        if(inputState.up) player.y -= player.spd;
+        if(inputState.down) player.y += player.spd;
+        if(inputState.left) player.x -= player.spd;
+        if(inputState.right) player.x += player.spd;
+
+        // 壁判定
+        player.x = Math.max(10, Math.min(canvas.width-10, player.x));
+        player.y = Math.max(10, Math.min(canvas.height-10, player.y));
+
+        if(player.invincible > 0) player.invincible--;
+
+        // 敵生成
+        if(Math.random() < 0.02 && enemies.length < 5) {
+            const angle = Math.random() * Math.PI * 2;
+            enemies.push({
+                x: player.x + Math.cos(angle) * 300,
+                y: player.y + Math.sin(angle) * 300,
+                size: 15, hp: 20 + (player.atk), maxHp: 20,
+                spd: 1 + Math.random(), color: 'red'
+            });
         }
 
-    </script>
+        // 敵処理
+        enemies.forEach((e, i) => {
+            const angle = Math.atan2(player.y - e.y, player.x - e.x);
+            e.x += Math.cos(angle) * e.spd;
+            e.y += Math.sin(angle) * e.spd;
+
+            // プレイヤー接触
+            const dist = Math.hypot(player.x - e.x, player.y - e.y);
+            if(dist < player.size + e.size && player.invincible <= 0) {
+                player.hp -= 10;
+                player.invincible = 30;
+                spawnText(player.x, player.y, "-10", "red");
+                updateUI();
+                if(player.hp <= 0) {
+                    alert("GAME OVER! 石は残ります");
+                    player.hp = player.maxHp;
+                    player.sp = 0;
+                    enemies = [];
+                    updateUI();
+                }
+            }
+        });
+
+        // パーティクル処理
+        for(let i=particles.length-1; i>=0; i--) {
+            let p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.life--;
+            if(p.isAtk) {
+                // 当たり判定
+                enemies.forEach((e, ei) => {
+                    if(Math.hypot(p.x - e.x, p.y - e.y) < e.size + p.size) {
+                        e.hp -= p.dmg;
+                        p.life = 0;
+                        player.sp = Math.min(player.maxSp, player.sp + 5);
+                        updateUI();
+                        spawnText(e.x, e.y, p.dmg, "yellow");
+                        if(e.hp <= 0) {
+                            enemies.splice(ei, 1);
+                            player.gems += 20;
+                            spawnText(e.x, e.y, "+20 Gem", "gold");
+                            updateUI();
+                        }
+                    }
+                });
+            }
+            if(p.life <= 0) particles.splice(i, 1);
+        }
+    }
+
+    function draw() {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // プレイヤー
+        if(player.invincible % 4 < 2) {
+            ctx.fillStyle = player.color;
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.size, 0, Math.PI*2); ctx.fill();
+        }
+
+        // 敵
+        enemies.forEach(e => {
+            ctx.fillStyle = e.color;
+            ctx.beginPath(); ctx.arc(e.x, e.y, e.size, 0, Math.PI*2); ctx.fill();
+        });
+
+        // パーティクル
+        particles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        });
+
+        // テキスト
+        texts.forEach((t, i) => {
+            ctx.fillStyle = t.color;
+            ctx.font = "bold 16px Arial";
+            ctx.fillText(t.text, t.x, t.y);
+            t.y--; t.life--;
+            if(t.life<=0) texts.splice(i, 1);
+        });
+    }
+
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    // --- ユーティリティ ---
+    function spawnText(x, y, text, color) {
+        texts.push({x, y, text, color, life:30});
+    }
+
+    function updateUI() {
+        document.getElementById('hp-bar').style.width = (player.hp/player.maxHp*100) + '%';
+        document.getElementById('sp-bar').style.width = (player.sp/player.maxSp*100) + '%';
+        document.getElementById('ui-gem').innerText = player.gems;
+        document.getElementById('ui-pot').innerText = "x" + player.potions;
+    }
+
+    // --- メニュー機能 ---
+    function toggleMenu(type) {
+        document.querySelectorAll('.modal').forEach(e => e.classList.remove('active'));
+        if(type === 'gacha') document.getElementById('modal-gacha').classList.add('active');
+        if(type === 'equip') {
+            document.getElementById('modal-equip').classList.add('active');
+            renderInventory();
+        }
+    }
+    function closeModal() {
+        document.querySelectorAll('.modal').forEach(e => e.classList.remove('active'));
+    }
+
+    function pullGacha() {
+        if(player.gems < 100) return;
+        player.gems -= 100;
+        updateUI();
+
+        const rarity = Math.random() < 0.1 ? 'SSR' : (Math.random() < 0.3 ? 'SR' : 'N');
+        const power = rarity === 'SSR' ? 50 : (rarity === 'SR' ? 20 : 5);
+        const name = rarity + "の剣";
+        
+        const item = { name: name, atk: power, rarity: rarity };
+        inventory.push(item);
+        
+        const resEl = document.getElementById('gacha-result');
+        resEl.innerText = `[${rarity}] ${name} (ATK+${power})`;
+        resEl.style.color = rarity === 'SSR' ? 'gold' : '#fff';
+    }
+
+    function renderInventory() {
+        const list = document.getElementById('inventory-list');
+        list.innerHTML = "";
+        
+        document.getElementById('current-equip').innerText = `現在: ${player.weapon.name} (ATK+${player.weapon.atk})`;
+
+        inventory.forEach((item, idx) => {
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            row.innerHTML = `<span style="color:${item.rarity=='SSR'?'gold':(item.rarity=='SR'?'#0cf':'white')}">${item.name}</span> <span>ATK+${item.atk}</span>`;
+            row.onclick = () => {
+                // 装備入れ替え
+                inventory.push(player.weapon); // 現在のを戻す
+                player.weapon = item;
+                inventory.splice(idx, 1); // 新しいのを消す
+                renderInventory();
+            };
+            list.appendChild(row);
+        });
+    }
+
+    updateUI();
+    loop();
+
+</script>
 </body>
 </html>
