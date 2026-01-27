@@ -1,467 +1,155 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>Button Action RPG</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <style>
-        /* 全体のスタイル：スマホアプリ風 */
-        body {
-            margin: 0; padding: 0;
-            background: #222; color: white;
-            font-family: sans-serif;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh;
-            overflow: hidden; /* スクロール禁止 */
-            user-select: none; /* テキスト選択禁止 */
-            -webkit-user-select: none;
-        }
-
-        /* ゲーム画面 */
-        #game-container {
-            position: relative;
-            width: 100%; max-width: 600px;
-            flex-grow: 1;
-            background: #000;
-            border: 2px solid #555;
-            display: flex; justify-content: center; align-items: center;
-        }
-        canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
-
-        /* UIオーバーレイ（HPバーなど） */
-        .ui-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; padding: 10px;
-            pointer-events: none; /* クリック透過 */
-            box-sizing: border-box;
-            display: flex; justify-content: space-between;
-        }
-        .bar-container { background: #333; width: 100px; height: 10px; border: 1px solid #fff; margin-bottom: 5px; }
-        .bar-fill { height: 100%; transition: width 0.2s; }
-
-        /* コントローラーエリア */
-        #controller-area {
-            width: 100%; max-width: 600px;
-            height: 220px;
-            background: #333;
-            border-top: 4px solid #555;
-            display: flex; justify-content: space-between; padding: 10px;
-            box-sizing: border-box;
-        }
-
-        /* 十字キー */
-        .d-pad {
-            display: grid;
-            grid-template-columns: 60px 60px 60px;
-            grid-template-rows: 60px 60px 60px;
-            gap: 5px;
-            align-self: center;
-        }
-        /* アクションボタン群 */
-        .action-pad {
-            display: grid;
-            grid-template-columns: 70px 70px;
-            grid-template-rows: 60px 60px 50px;
-            gap: 8px;
-            align-self: center;
-        }
-        
-        /* 共通ボタンデザイン */
-        .c-btn {
-            background: #444; border: 2px solid #666; border-radius: 10px;
-            color: white; font-size: 24px; font-weight: bold;
-            display: flex; justify-content: center; align-items: center;
-            cursor: pointer;
-            box-shadow: 0 4px 0 #222;
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
-        .c-btn:active, .c-btn.pressed {
-            transform: translateY(4px); box-shadow: 0 0 0 #222; background: #666;
-        }
-        
-        /* 特定ボタンの色 */
-        .btn-atk { background: #d32f2f; border-color: #ff5252; } /* 赤 */
-        .btn-skill { background: #1976d2; border-color: #448aff; } /* 青 */
-        .btn-item { background: #388e3c; border-color: #66bb6a; font-size: 14px; flex-direction: column;} /* 緑 */
-        .btn-menu { background: #fbc02d; color: #000; font-size: 14px; height: 40px;}
-
-        /* メニュー画面（ポップアップ） */
-        .modal {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 100;
-            display: none; flex-direction: column; align-items: center; justify-content: center;
-            pointer-events: auto;
-        }
-        .modal.active { display: flex; }
-        .scroll-box {
-            width: 80%; max-height: 60%; overflow-y: auto;
-            background: #222; border: 2px solid gold; padding: 10px; margin: 10px;
-        }
-        .item-row { padding: 10px; border-bottom: 1px solid #444; cursor: pointer; display: flex; justify-content: space-between; }
-        .item-row:hover { background: #444; }
-
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+  <title>Babylon iPad RPG Prototype</title>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+  <style>
+    html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:#e6f0ff}
+    #renderCanvas{width:100%;height:100%;touch-action:none;display:block}
+    /* touch UI styles (same as playground prototype) */
+    .vjoy { position: fixed; left: 18px; bottom: 18px; width: 140px; height: 140px; border-radius: 70px; background: rgba(200,200,200,0.08); touch-action:none; z-index:9999; }
+    .vjoy .nub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:64px; height:64px; border-radius:32px; background: rgba(200,200,200,0.28); }
+    .btn { position: fixed; right: 18px; bottom: 18px; width:84px; height:84px; border-radius:42px; background: rgba(255,80,80,0.9); z-index:9999; display:flex; align-items:center; justify-content:center; font-weight:bold; color:white; font-size:18px; touch-action:none;}
+    .btn2 { position: fixed; right: 110px; bottom: 18px; width:64px; height:64px; border-radius:32px; background: rgba(80,150,255,0.95); z-index:9999; display:flex; align-items:center; justify-content:center; font-weight:bold; color:white; font-size:16px; touch-action:none;}
+    .btn3 { position: fixed; right: 18px; bottom: 110px; width:64px; height:64px; border-radius:32px; background: rgba(150,80,255,0.95); z-index:9999; display:flex; align-items:center; justify-content:center; font-weight:bold; color:white; font-size:16px; touch-action:none;}
+  </style>
 </head>
 <body>
+  <canvas id="renderCanvas"></canvas>
 
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-        
-        <div class="ui-overlay">
-            <div>
-                <div style="font-size:12px;">HP</div>
-                <div class="bar-container"><div class="bar-fill" id="hp-bar" style="background:#f44; width:100%"></div></div>
-                <div style="font-size:12px;">SP</div>
-                <div class="bar-container"><div class="bar-fill" id="sp-bar" style="background:#44f; width:0%"></div></div>
-            </div>
-            <div style="text-align:right;">
-                <div>💎 <span id="ui-gem">0</span></div>
-                <div style="margin-top:5px;">
-                    <button class="c-btn btn-menu" onclick="toggleMenu('gacha')">ガチャ</button>
-                    <button class="c-btn btn-menu" onclick="toggleMenu('equip')" style="margin-top:5px;">装備</button>
-                </div>
-            </div>
-        </div>
+  <script>
+  (function(){
+    const canvas = document.getElementById('renderCanvas');
+    const engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer:true, stencil:true});
 
-        <div id="modal-gacha" class="modal">
-            <h2>🔮 武器ガチャ</h2>
-            <p>1回 💎100</p>
-            <div id="gacha-result" style="height:50px; margin:20px; font-size:20px; color:gold;"></div>
-            <button class="c-btn btn-atk" style="width:200px;" onclick="pullGacha()">💎100 引く</button>
-            <br>
-            <button class="c-btn" style="width:100px; height:40px; font-size:14px;" onclick="closeModal()">閉じる</button>
-        </div>
+    function createScene() {
+      const scene = new BABYLON.Scene(engine);
+      scene.clearColor = new BABYLON.Color3(0.8,0.9,1);
 
-        <div id="modal-equip" class="modal">
-            <h2>🎒 装備変更</h2>
-            <div id="current-equip" style="margin-bottom:10px; color:#aaa;"></div>
-            <div class="scroll-box" id="inventory-list"></div>
-            <button class="c-btn" style="width:100px; height:40px; font-size:14px;" onclick="closeModal()">閉じる</button>
-        </div>
-    </div>
+      const light = new BABYLON.HemisphericLight('h', new BABYLON.Vector3(0,1,0), scene);
+      light.intensity = 0.9;
 
-    <div id="controller-area">
-        <div class="d-pad">
-            <div></div>
-            <div class="c-btn" id="btn-up" data-key="up">⬆️</div>
-            <div></div>
-            
-            <div class="c-btn" id="btn-left" data-key="left">⬅️</div>
-            <div class="c-btn" style="background:#222; border:none; box-shadow:none; cursor:default;"></div>
-            <div class="c-btn" id="btn-right" data-key="right">➡️</div>
-            
-            <div></div>
-            <div class="c-btn" id="btn-down" data-key="down">⬇️</div>
-            <div></div>
-        </div>
+      const ground = BABYLON.MeshBuilder.CreateGround('g',{width:120,height:120},scene);
+      ground.receiveShadows = true;
 
-        <div class="action-pad">
-            <div class="c-btn btn-atk" id="btn-atk" style="grid-column: span 2;">⚔️ 攻撃</div>
-            
-            <div class="c-btn btn-skill" id="btn-skill">⚡️</div>
-            <div class="c-btn btn-item" id="btn-heal" onclick="usePotion()">
-                <span>💊</span><span id="ui-pot" style="font-size:10px">x3</span>
-            </div>
-        </div>
-    </div>
+      // player
+      const player = new BABYLON.TransformNode('player', scene);
+      const body = BABYLON.MeshBuilder.CreateBox('body',{height:1.6,width:0.7,depth:0.4},scene);
+      body.parent = player; body.position.y = 0.9;
+      const head = BABYLON.MeshBuilder.CreateSphere('head',{diameter:0.45},scene);
+      head.parent = player; head.position.y = 1.65;
+      const pm = new BABYLON.StandardMaterial('pm',scene); pm.diffuseColor = new BABYLON.Color3(0.2,0.5,0.8);
+      body.material = pm; head.material = pm;
+      player.position = new BABYLON.Vector3(0,0,0);
+      player.hp = 100; player.maxHp = 100; player.speed = 3.0;
 
-<script>
-    // --- ゲーム設定 ---
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    // 画面サイズ調整
-    function resize() {
-        const rect = document.getElementById('game-container').getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-    }
-    window.addEventListener('resize', resize);
-    resize();
+      // camera (FollowCamera)
+      const camera = new BABYLON.FollowCamera('cam', new BABYLON.Vector3(0,3,-6), scene);
+      camera.lockedTarget = player; camera.radius = 6; camera.heightOffset = 2; camera.rotationOffset = 0;
+      camera.cameraAcceleration = 0.05; camera.maxCameraSpeed = 10;
+      camera.attachControl(canvas, true);
 
-    // プレイヤーデータ
-    let player = {
-        x: canvas.width/2, y: canvas.height/2, size: 15,
-        color: '#00ffcc',
-        hp: 100, maxHp: 100, sp: 0, maxSp: 100,
-        atk: 5, spd: 4,
-        gems: 500, potions: 3,
-        weapon: { name: '素手', atk: 2, rarity: 'N' },
-        invincible: 0
-    };
+      // GUI
+      const gui = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI('ui', true, scene);
+      const playerHPBar = new BABYLON.GUI.Rectangle();
+      playerHPBar.width = '220px'; playerHPBar.height = '28px'; playerHPBar.cornerRadius = 5; playerHPBar.color = 'black'; playerHPBar.thickness = 2;
+      playerHPBar.background = 'rgba(0,0,0,0.3)'; playerHPBar.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+      playerHPBar.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP; playerHPBar.left = '12px'; playerHPBar.top = '12px';
+      gui.addControl(playerHPBar);
+      const playerHPFill = new BABYLON.GUI.Rectangle(); playerHPFill.width = '100%'; playerHPFill.height = '100%'; playerHPFill.background = 'green'; playerHPFill.cornerRadius = 5; playerHPBar.addControl(playerHPFill);
+      const playerHPText = new BABYLON.GUI.TextBlock(); playerHPText.text = 'HP: 100/100'; playerHPText.color = 'white'; playerHPText.fontSize = 14; playerHPBar.addControl(playerHPText);
 
-    let enemies = [];
-    let particles = [];
-    let texts = [];
-    let inventory = [];
-    
-    // 入力状態管理
-    let inputState = { up: false, down: false, left: false, right: false };
+      // enemy creation
+      function createEnemy(posX,posZ) {
+        const root = new BABYLON.TransformNode('enemyRoot', scene);
+        const mesh = BABYLON.MeshBuilder.CreateBox('enemy',{height:1.6,width:0.8,depth:0.5},scene);
+        mesh.parent = root; mesh.position.y = 0.8;
+        const em = new BABYLON.StandardMaterial('em',scene); em.diffuseColor = new BABYLON.Color3(0.8,0.2,0.2);
+        mesh.material = em;
+        root.position = new BABYLON.Vector3(posX,0,posZ);
+        root.hp = 120; root.maxHp = 120; root.isAlive = true;
+        const eBar = new BABYLON.GUI.Rectangle(); eBar.width='140px'; eBar.height='12px'; eBar.background='rgba(0,0,0,0.5)'; eBar.cornerRadius=4; eBar.thickness=1; eBar.color='black'; gui.addControl(eBar);
+        eBar.linkWithMesh(root); eBar.linkOffsetY = -120;
+        const eFill = new BABYLON.GUI.Rectangle(); eFill.width='100%'; eFill.height='100%'; eFill.background='red'; eFill.cornerRadius=4; eBar.addControl(eFill);
+        root._hpFill = eFill; return root;
+      }
 
-    // --- コントローラー入力処理 ---
-    const setupBtn = (id, key) => {
-        const btn = document.getElementById(id);
-        const start = (e) => { e.preventDefault(); inputState[key] = true; btn.classList.add('pressed'); };
-        const end = (e) => { e.preventDefault(); inputState[key] = false; btn.classList.remove('pressed'); };
-        
-        btn.addEventListener('mousedown', start);
-        btn.addEventListener('mouseup', end);
-        btn.addEventListener('mouseleave', end); // 範囲外に出た時用
-        btn.addEventListener('touchstart', start);
-        btn.addEventListener('touchend', end);
-    };
+      const enemy = createEnemy(0,12);
 
-    setupBtn('btn-up', 'up');
-    setupBtn('btn-down', 'down');
-    setupBtn('btn-left', 'left');
-    setupBtn('btn-right', 'right');
+      // inputs
+      let moveInput = {x:0,y:0};
 
-    // 攻撃ボタン
-    const atkBtn = document.getElementById('btn-atk');
-    const doAttack = (e) => { e.preventDefault(); atkBtn.classList.add('pressed'); playerAttack(); setTimeout(()=>atkBtn.classList.remove('pressed'), 100); };
-    atkBtn.addEventListener('mousedown', doAttack);
-    atkBtn.addEventListener('touchstart', doAttack);
+      // create touch UI elements (DOM)
+      (function createTouchUI(){
+        // joystick
+        const joy = document.createElement('div'); joy.className = 'vjoy';
+        const nub = document.createElement('div'); nub.className = 'nub'; joy.appendChild(nub); document.body.appendChild(joy);
+        const atk = document.createElement('div'); atk.className = 'btn'; atk.innerText='Attack'; document.body.appendChild(atk);
+        const m1 = document.createElement('div'); m1.className='btn2'; m1.innerText='F1'; const m2 = document.createElement('div'); m2.className='btn3'; m2.innerText='F2'; document.body.appendChild(m1); document.body.appendChild(m2);
 
-    // 必殺技ボタン
-    const skillBtn = document.getElementById('btn-skill');
-    const doSkill = (e) => { e.preventDefault(); skillBtn.classList.add('pressed'); playerSkill(); setTimeout(()=>skillBtn.classList.remove('pressed'), 100); };
-    skillBtn.addEventListener('mousedown', doSkill);
-    skillBtn.addEventListener('touchstart', doSkill);
+        let active=false, origin=null;
+        joy.addEventListener('pointerdown',(e)=>{ active=true; origin={x:e.clientX,y:e.clientY}; joy.setPointerCapture(e.pointerId);});
+        joy.addEventListener('pointermove',(e)=>{ if(!active) return; const dx=e.clientX-origin.x; const dy=e.clientY-origin.y; const max=40; const nx=Math.max(-max,Math.min(max,dx)); const ny=Math.max(-max,Math.min(max,dy)); nub.style.transform = `translate(${nx}px, ${ny}px)`; moveInput.x = nx/max; moveInput.y = -ny/max; });
+        joy.addEventListener('pointerup',(e)=>{ active=false; origin=null; nub.style.transform='translate(-50%,-50%)'; moveInput.x=0; moveInput.y=0; joy.releasePointerCapture(e.pointerId);});
 
+        // camera swipe
+        let camTouch={active:false,id:null,lastX:0,lastY:0};
+        canvas.addEventListener('pointerdown',(e)=>{ if(e.clientX > window.innerWidth/2){ camTouch.active=true; camTouch.id=e.pointerId; camTouch.lastX=e.clientX; camTouch.lastY=e.clientY; canvas.setPointerCapture(e.pointerId); } });
+        canvas.addEventListener('pointermove',(e)=>{ if(!camTouch.active || camTouch.id!==e.pointerId) return; const dx = e.clientX-camTouch.lastX; const dy = e.clientY-camTouch.lastY; camTouch.lastX=e.clientX; camTouch.lastY=e.clientY; camera.alpha -= dx * 0.0025; camera.beta -= dy * 0.0025; camera.beta = Math.max(0.6, Math.min(1.5, camera.beta)); });
+        canvas.addEventListener('pointerup',(e)=>{ if(camTouch.id === e.pointerId){ camTouch.active=false; camTouch.id=null; canvas.releasePointerCapture(e.pointerId); } });
 
-    // --- ゲームロジック ---
+        // attack & magic
+        atk.addEventListener('pointerdown', (e)=>{ doAttack(); atk.style.transform='scale(0.95)'; }); atk.addEventListener('pointerup',(e)=>{ atk.style.transform='scale(1)'; });
+        let lastFire=-9999, lastIce=-9999; const fireCooldown=3000, iceCooldown=5000;
+        m1.addEventListener('pointerdown',(e)=>{ const now = performance.now(); if(now - lastFire >= fireCooldown){ lastFire = now; fireMagic(); m1.style.opacity='0.5'; setTimeout(()=>m1.style.opacity='1',300); } });
+        m2.addEventListener('pointerdown',(e)=>{ const now = performance.now(); if(now - lastIce >= iceCooldown){ lastIce = now; iceMagic(); m2.style.opacity='0.5'; setTimeout(()=>m2.style.opacity='1',300); } });
+      })();
 
-    function playerAttack() {
-        // 前方に攻撃判定を出す
-        // 簡易的に「一番近い敵」に向かって弾を出すオートエイム
-        let target = null;
-        let minDist = 9999;
-        enemies.forEach(e => {
-            const d = Math.hypot(e.x - player.x, e.y - player.y);
-            if(d < minDist) { minDist = d; target = e; }
-        });
+      // attack
+      const projectiles = [];
+      function doAttack(){ const origin = player.position.add(new BABYLON.Vector3(0,1.2,0)); const forward = new BABYLON.Vector3(Math.sin(camera.alpha),0,Math.cos(camera.alpha)); const ray = new BABYLON.Ray(origin, forward, 3.0); const pick = scene.pickWithRay(ray, (m)=> m && m.parent === enemy);
+        if(pick && pick.hit){ damageEnemy(enemy,25); }
+        const s = BABYLON.MeshBuilder.CreateTorus('swing',{thickness:0.06,diameter:1.6,tessellation:24},scene); s.position = origin.add(forward.scale(1.2)); s.rotation.x = Math.PI/2; s.material = new BABYLON.StandardMaterial('sm',scene); s.material.emissiveColor = new BABYLON.Color3(1,0.6,0.1); setTimeout(()=>{ s.dispose(); },150);
+      }
 
-        let angle = 0; // デフォルト右
-        if(target) {
-            angle = Math.atan2(target.y - player.y, target.x - player.x);
-        } else {
-            // 移動していればその方向へ
-            if(inputState.left) angle = Math.PI;
-            if(inputState.up) angle = -Math.PI/2;
-            if(inputState.down) angle = Math.PI/2;
-        }
+      function fireMagic(){ const origin = player.position.add(new BABYLON.Vector3(0,1.2,0)); const forward = new BABYLON.Vector3(Math.sin(camera.alpha),0,Math.cos(camera.alpha)); const proj = BABYLON.MeshBuilder.CreateSphere('fire',{diameter:0.4},scene); proj.position = origin.add(forward.scale(1.2)); proj.material = new BABYLON.StandardMaterial('fm',scene); proj.material.emissiveColor = new BABYLON.Color3(1,0.3,0.1); proj._vel = forward.scale(12); proj._life = 3000; proj._type='fire'; projectiles.push(proj); }
+      function iceMagic(){ const origin = player.position.add(new BABYLON.Vector3(0,1.2,0)); const forward = new BABYLON.Vector3(Math.sin(camera.alpha),0,Math.cos(camera.alpha)); const proj = BABYLON.MeshBuilder.CreateSphere('ice',{diameter:0.45},scene); proj.position = origin.add(forward.scale(1.2)); proj.material = new BABYLON.StandardMaterial('im',scene); proj.material.emissiveColor = new BABYLON.Color3(0.4,0.8,1); proj._vel = forward.scale(10); proj._life = 3000; proj._type='ice'; projectiles.push(proj); }
 
-        particles.push({
-            x: player.x, y: player.y,
-            vx: Math.cos(angle) * 8, vy: Math.sin(angle) * 8,
-            life: 20, color: '#fff', size: 8, dmg: player.atk + player.weapon.atk, isAtk: true
-        });
+      function damageEnemy(e,dmg){ if(!e.isAlive) return; e.hp -= dmg; e._hpFill.width = Math.max(0,(e.hp/e.maxHp)*100) + '%'; if(e.hp <= 0){ e.isAlive = false; const boom = BABYLON.MeshBuilder.CreateSphere('b',{diameter:1.6},scene); boom.position = e.position.add(new BABYLON.Vector3(0,1,0)); boom.material = new BABYLON.StandardMaterial('bm',scene); boom.material.emissiveColor = new BABYLON.Color3(1,0.3,0.1); setTimeout(()=>{ boom.dispose(); e.getChildren().forEach(c=>c.dispose()); try{ e.dispose(); }catch(e){} },400); } }
+
+      // burn
+      function applyBurn(target, ticks, dmg){ if(!target.isAlive) return; let count=0; const iv = setInterval(()=>{ if(!target.isAlive){ clearInterval(iv); return; } damageEnemy(target,dmg); count++; if(count>=ticks) clearInterval(iv); },600); }
+
+      // game loop
+      scene.onBeforeRenderObservable.add(()=>{
+        const dt = scene.getEngine().getDeltaTime() / 1000;
+        for(let i = projectiles.length-1;i>=0;i--){ const p = projectiles[i]; p.position.addInPlace(p._vel.scale(dt)); p._life -= dt*1000; if(enemy.isAlive && p.position.subtract(enemy.position).length() < 1.2){ if(p._type==='fire'){ damageEnemy(enemy,35); applyBurn(enemy,3,4); } else if(p._type==='ice'){ damageEnemy(enemy,18); enemy._slow = 2.5; } p.dispose(); projectiles.splice(i,1); continue; } if(p._life <= 0){ p.dispose(); projectiles.splice(i,1); } }
+
+        // enemy movement
+        if(enemy.isAlive){ const dir = player.position.subtract(enemy.position); const dist = dir.length(); if(dist > 2.0){ const speed = 1.5 * (enemy._slow ? 0.5 : 1.0); const m = dir.normalize().scale(-1 * speed * dt); enemy.position.addInPlace(m); } else { if(!enemy._lastAtk || performance.now() - enemy._lastAtk > 1200){ enemy._lastAtk = performance.now(); player.hp -= 12; playerHPFill.width = Math.max(0,(player.hp/player.maxHp)*100) + '%'; playerHPText.text = `HP: ${Math.max(0,player.hp)}/${player.maxHp}`; } } if(enemy._slow){ enemy._slowTimer = (enemy._slowTimer||0) + dt; if(enemy._slowTimer >= enemy._slow){ enemy._slow = 0; enemy._slowTimer = 0; } } }
+
+        // movement
+        if(Math.abs(moveInput.x) > 0.01 || Math.abs(moveInput.y) > 0.01){ const alpha = camera.alpha; const forward = new BABYLON.Vector3(Math.sin(alpha),0,Math.cos(alpha)); const right = new BABYLON.Vector3(forward.z * -1, 0, forward.x); const worldMove = forward.scale(moveInput.y).add(right.scale(moveInput.x)); if(worldMove.length() > 0.001){ const step = worldMove.normalize().scale(player.speed * dt); player.position.addInPlace(step); player.rotation = new BABYLON.Vector3(0, Math.atan2(worldMove.x, worldMove.z), 0); } }
+
+        if(player.position.y < 0) player.position.y = 0;
+        if(player.hp <= 0){ player.position = new BABYLON.Vector3(0,0,0); player.hp = player.maxHp; playerHPFill.width = '100%'; playerHPText.text = `HP: ${player.hp}/${player.maxHp}`; // respawn enemy
+          enemy.position = new BABYLON.Vector3(0,0,12); enemy.hp = enemy.maxHp; enemy.isAlive = true; enemy._hpFill.width = '100%'; }
+      });
+
+      // initial camera
+      camera.alpha = Math.PI; camera.beta = 0.9;
+      const lightSphere = BABYLON.MeshBuilder.CreateSphere('ls',{diameter:0.2},scene); lightSphere.position = new BABYLON.Vector3(2,0.2,2); const lm = new BABYLON.StandardMaterial('lm',scene); lm.emissiveColor = new BABYLON.Color3(1,1,0.6); lightSphere.material = lm;
+
+      return scene;
     }
 
-    function playerSkill() {
-        if(player.sp >= 100) {
-            player.sp = 0;
-            updateUI();
-            // 全方位攻撃
-            for(let i=0; i<360; i+=15) {
-                const rad = i * Math.PI / 180;
-                particles.push({
-                    x: player.x, y: player.y,
-                    vx: Math.cos(rad) * 10, vy: Math.sin(rad) * 10,
-                    life: 40, color: 'cyan', size: 5, dmg: (player.atk + player.weapon.atk) * 3, isAtk: true
-                });
-            }
-            spawnText(player.x, player.y, "ULTIMATE!", "cyan");
-        } else {
-            spawnText(player.x, player.y, "No SP!", "gray");
-        }
-    }
-
-    function usePotion() {
-        if(player.potions > 0 && player.hp < player.maxHp) {
-            player.potions--;
-            player.hp = Math.min(player.maxHp, player.hp + 50);
-            updateUI();
-            spawnText(player.x, player.y, "Heal!", "#0f0");
-        }
-    }
-
-    function update() {
-        // プレイヤー移動
-        if(inputState.up) player.y -= player.spd;
-        if(inputState.down) player.y += player.spd;
-        if(inputState.left) player.x -= player.spd;
-        if(inputState.right) player.x += player.spd;
-
-        // 壁判定
-        player.x = Math.max(10, Math.min(canvas.width-10, player.x));
-        player.y = Math.max(10, Math.min(canvas.height-10, player.y));
-
-        if(player.invincible > 0) player.invincible--;
-
-        // 敵生成
-        if(Math.random() < 0.02 && enemies.length < 5) {
-            const angle = Math.random() * Math.PI * 2;
-            enemies.push({
-                x: player.x + Math.cos(angle) * 300,
-                y: player.y + Math.sin(angle) * 300,
-                size: 15, hp: 20 + (player.atk), maxHp: 20,
-                spd: 1 + Math.random(), color: 'red'
-            });
-        }
-
-        // 敵処理
-        enemies.forEach((e, i) => {
-            const angle = Math.atan2(player.y - e.y, player.x - e.x);
-            e.x += Math.cos(angle) * e.spd;
-            e.y += Math.sin(angle) * e.spd;
-
-            // プレイヤー接触
-            const dist = Math.hypot(player.x - e.x, player.y - e.y);
-            if(dist < player.size + e.size && player.invincible <= 0) {
-                player.hp -= 10;
-                player.invincible = 30;
-                spawnText(player.x, player.y, "-10", "red");
-                updateUI();
-                if(player.hp <= 0) {
-                    alert("GAME OVER! 石は残ります");
-                    player.hp = player.maxHp;
-                    player.sp = 0;
-                    enemies = [];
-                    updateUI();
-                }
-            }
-        });
-
-        // パーティクル処理
-        for(let i=particles.length-1; i>=0; i--) {
-            let p = particles[i];
-            p.x += p.vx; p.y += p.vy; p.life--;
-            if(p.isAtk) {
-                // 当たり判定
-                enemies.forEach((e, ei) => {
-                    if(Math.hypot(p.x - e.x, p.y - e.y) < e.size + p.size) {
-                        e.hp -= p.dmg;
-                        p.life = 0;
-                        player.sp = Math.min(player.maxSp, player.sp + 5);
-                        updateUI();
-                        spawnText(e.x, e.y, p.dmg, "yellow");
-                        if(e.hp <= 0) {
-                            enemies.splice(ei, 1);
-                            player.gems += 20;
-                            spawnText(e.x, e.y, "+20 Gem", "gold");
-                            updateUI();
-                        }
-                    }
-                });
-            }
-            if(p.life <= 0) particles.splice(i, 1);
-        }
-    }
-
-    function draw() {
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // プレイヤー
-        if(player.invincible % 4 < 2) {
-            ctx.fillStyle = player.color;
-            ctx.beginPath(); ctx.arc(player.x, player.y, player.size, 0, Math.PI*2); ctx.fill();
-        }
-
-        // 敵
-        enemies.forEach(e => {
-            ctx.fillStyle = e.color;
-            ctx.beginPath(); ctx.arc(e.x, e.y, e.size, 0, Math.PI*2); ctx.fill();
-        });
-
-        // パーティクル
-        particles.forEach(p => {
-            ctx.fillStyle = p.color;
-            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
-        });
-
-        // テキスト
-        texts.forEach((t, i) => {
-            ctx.fillStyle = t.color;
-            ctx.font = "bold 16px Arial";
-            ctx.fillText(t.text, t.x, t.y);
-            t.y--; t.life--;
-            if(t.life<=0) texts.splice(i, 1);
-        });
-    }
-
-    function loop() {
-        update();
-        draw();
-        requestAnimationFrame(loop);
-    }
-
-    // --- ユーティリティ ---
-    function spawnText(x, y, text, color) {
-        texts.push({x, y, text, color, life:30});
-    }
-
-    function updateUI() {
-        document.getElementById('hp-bar').style.width = (player.hp/player.maxHp*100) + '%';
-        document.getElementById('sp-bar').style.width = (player.sp/player.maxSp*100) + '%';
-        document.getElementById('ui-gem').innerText = player.gems;
-        document.getElementById('ui-pot').innerText = "x" + player.potions;
-    }
-
-    // --- メニュー機能 ---
-    function toggleMenu(type) {
-        document.querySelectorAll('.modal').forEach(e => e.classList.remove('active'));
-        if(type === 'gacha') document.getElementById('modal-gacha').classList.add('active');
-        if(type === 'equip') {
-            document.getElementById('modal-equip').classList.add('active');
-            renderInventory();
-        }
-    }
-    function closeModal() {
-        document.querySelectorAll('.modal').forEach(e => e.classList.remove('active'));
-    }
-
-    function pullGacha() {
-        if(player.gems < 100) return;
-        player.gems -= 100;
-        updateUI();
-
-        const rarity = Math.random() < 0.1 ? 'SSR' : (Math.random() < 0.3 ? 'SR' : 'N');
-        const power = rarity === 'SSR' ? 50 : (rarity === 'SR' ? 20 : 5);
-        const name = rarity + "の剣";
-        
-        const item = { name: name, atk: power, rarity: rarity };
-        inventory.push(item);
-        
-        const resEl = document.getElementById('gacha-result');
-        resEl.innerText = `[${rarity}] ${name} (ATK+${power})`;
-        resEl.style.color = rarity === 'SSR' ? 'gold' : '#fff';
-    }
-
-    function renderInventory() {
-        const list = document.getElementById('inventory-list');
-        list.innerHTML = "";
-        
-        document.getElementById('current-equip').innerText = `現在: ${player.weapon.name} (ATK+${player.weapon.atk})`;
-
-        inventory.forEach((item, idx) => {
-            const row = document.createElement('div');
-            row.className = 'item-row';
-            row.innerHTML = `<span style="color:${item.rarity=='SSR'?'gold':(item.rarity=='SR'?'#0cf':'white')}">${item.name}</span> <span>ATK+${item.atk}</span>`;
-            row.onclick = () => {
-                // 装備入れ替え
-                inventory.push(player.weapon); // 現在のを戻す
-                player.weapon = item;
-                inventory.splice(idx, 1); // 新しいのを消す
-                renderInventory();
-            };
-            list.appendChild(row);
-        });
-    }
-
-    updateUI();
-    loop();
-
-</script>
+    const scene = createScene();
+    engine.runRenderLoop(()=>{ if(scene) scene.render(); });
+    window.addEventListener('resize', ()=>{ engine.resize(); });
+  })();
+  </script>
 </body>
 </html>
