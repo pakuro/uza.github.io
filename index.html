@@ -2,430 +2,436 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Cosmic Evolution: 星の精霊</title>
+    <title>Infinity Crafter RPG</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+
         body {
-            margin: 0; padding: 0;
-            background: #111; color: #fff;
-            font-family: 'Courier New', sans-serif;
-            overflow: hidden;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh;
+            background: #121212; color: #e0e0e0;
+            font-family: 'Roboto Mono', monospace;
+            margin: 0; padding: 20px;
+            display: flex; justify-content: center; height: 95vh;
         }
 
+        /* レイアウト */
         #game-container {
-            position: relative;
-            width: 500px; height: 700px;
-            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-            border: 4px solid #444;
-            border-radius: 20px;
-            box-shadow: 0 0 30px rgba(0,0,0,0.8);
-            display: flex; flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* 上部ステータス */
-        #header {
-            padding: 15px;
-            background: rgba(0,0,0,0.5);
-            display: flex; justify-content: space-between;
-            border-bottom: 2px solid #444;
-        }
-        .stat-box { font-weight: bold; font-size: 14px; }
-        .val-str { color: #ff5555; }
-        .val-int { color: #55aaff; }
-        .val-luck { color: #ffdd55; }
-
-        /* メイン画面（Canvas） */
-        #canvas-wrapper {
-            flex-grow: 1;
-            position: relative;
-            background: radial-gradient(circle at center, #2a2a40 0%, #000 100%);
-            cursor: pointer;
-        }
-        canvas { display: block; width: 100%; height: 100%; }
-
-        /* HPバー */
-        #hp-container {
-            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-            width: 60%; height: 10px; background: #333; border-radius: 5px;
-            border: 1px solid #fff;
-        }
-        #hp-bar {
-            width: 100%; height: 100%; background: #00ff88;
-            border-radius: 5px; transition: width 0.3s;
-        }
-
-        /* コントロールパネル */
-        #controls {
-            height: 180px;
-            background: #222;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
-            gap: 10px; padding: 10px;
+            grid-template-rows: auto 1fr;
+            gap: 15px;
+            width: 1000px; height: 100%;
         }
+
+        .panel {
+            background: #1e1e1e; border: 2px solid #333;
+            border-radius: 8px; padding: 15px;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        h2 { margin-top: 0; border-bottom: 2px solid #444; padding-bottom: 5px; font-size: 18px; color: #aaa; }
         
-        .btn {
-            background: #333; border: 2px solid #555; color: white;
-            border-radius: 10px; font-size: 16px; font-weight: bold;
-            cursor: pointer; transition: 0.1s;
+        /* バトルエリア */
+        #battle-panel { grid-row: 1 / 3; display: flex; flex-direction: column; }
+        #enemy-view {
+            flex-grow: 1; background: #000; border: 1px solid #444;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
+            margin-bottom: 10px; position: relative;
         }
-        .btn:active { transform: scale(0.95); background: #444; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn span { font-size: 12px; margin-top: 4px; color: #aaa; }
+        #enemy-emoji { font-size: 80px; transition: transform 0.1s; cursor: pointer; user-select: none; }
+        #enemy-emoji:active { transform: scale(0.9); }
+        
+        .bar-container { width: 80%; height: 20px; background: #333; margin: 5px 0; border-radius: 10px; overflow: hidden; position: relative;}
+        .bar-fill { height: 100%; transition: width 0.2s; }
+        .hp-fill { background: #ff4444; }
+        .xp-fill { background: #44ff88; }
+        .bar-text { position: absolute; width: 100%; text-align: center; top: 0; line-height: 20px; font-size: 12px; color: white; text-shadow: 1px 1px 0 #000; }
 
-        #btn-str { border-bottom: 4px solid #aa3333; }
-        #btn-int { border-bottom: 4px solid #3366aa; }
-        #btn-luck { border-bottom: 4px solid #aa9933; }
-        #btn-eat { border-bottom: 4px solid #33aa66; background: #2f3f2f; }
-
-        /* メッセージログ */
-        #log {
-            position: absolute; top: 60px; width: 100%;
-            text-align: center; font-size: 14px; color: #fff;
-            text-shadow: 0 1px 2px #000;
-            pointer-events: none;
-            height: 20px;
+        /* コントロール */
+        .zones { display: flex; gap: 5px; margin-bottom: 10px; }
+        .zone-btn {
+            background: #333; color: #888; border: 1px solid #555;
+            padding: 5px 10px; cursor: pointer; font-family: inherit;
         }
+        .zone-btn.active { background: #e0e0e0; color: #000; font-weight: bold; }
 
-        /* 進化通知 */
-        #evolution-overlay {
-            position: absolute; inset: 0; background: rgba(0,0,0,0.9);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.5s;
+        /* ログ */
+        #log { height: 100px; background: #000; font-size: 12px; padding: 5px; overflow-y: scroll; color: #888; border: 1px solid #333; }
+        .log-loot { color: #ffd700; }
+        .log-lvl { color: #00ff88; font-weight: bold; }
+
+        /* クラフト & インベントリ */
+        .item-list { display: flex; flex-direction: column; gap: 5px; }
+        .item-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #2a2a2a; padding: 8px; border-radius: 4px; border: 1px solid #333;
         }
-        #evo-title { font-size: 30px; color: #ffd700; margin-bottom: 20px; font-family: 'Press Start 2P', cursive; text-align: center; line-height: 1.5;}
-        #evo-desc { font-size: 16px; color: #ccc; margin-bottom: 30px; }
-        #evo-btn { padding: 10px 30px; font-size: 20px; cursor: pointer; background: #fff; border: none; border-radius: 5px; }
+        .item-info { display: flex; flex-direction: column; }
+        .item-name { font-weight: bold; }
+        .item-req { font-size: 11px; color: #888; }
+        
+        /* レアリティ色 */
+        .rarity-1 { color: #fff; } /* Common */
+        .rarity-2 { color: #4488ff; } /* Rare */
+        .rarity-3 { color: #d044ff; } /* Epic */
+        .rarity-4 { color: #ffcc00; text-shadow: 0 0 5px rgba(255,200,0,0.5); } /* Legendary */
 
+        button.craft-btn, button.equip-btn {
+            background: #333; color: white; border: 1px solid #555;
+            padding: 5px 10px; cursor: pointer; font-family: inherit;
+        }
+        button.craft-btn:hover { background: #555; }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* ステータス */
+        #stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; }
+        .stat-val { font-weight: bold; color: white; }
+
+        /* タブ切り替え用（スマホなど画面が狭いとき用だが今回はPC想定で全表示） */
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <div id="header">
-            <div class="stat-box">LV: <span id="val-lv">1</span></div>
-            <div class="stat-box val-str">STR: <span id="val-str">0</span></div>
-            <div class="stat-box val-int">INT: <span id="val-int">0</span></div>
-            <div class="stat-box val-luck">LUCK: <span id="val-luck">0</span></div>
+<div id="game-container">
+    <div id="battle-panel" class="panel">
+        <h2>⚔️ BATTLE ZONE</h2>
+        <div class="zones">
+            <button class="zone-btn active" onclick="setZone(0)">Zone 1: 平原</button>
+            <button class="zone-btn" onclick="setZone(1)">Zone 2: 森林</button>
+            <button class="zone-btn" onclick="setZone(2)">Zone 3: 火山</button>
+            <button class="zone-btn" onclick="setZone(3)">Zone 4: 魔界</button>
         </div>
 
-        <div id="canvas-wrapper" onclick="petCreature(event)">
-            <div id="log">育成を開始します...</div>
-            <canvas id="gameCanvas"></canvas>
-            <div id="hp-container"><div id="hp-bar"></div></div>
+        <div id="enemy-view" onclick="playerAttack()">
+            <div style="position:absolute; top:10px; color:#888;">CLICK TO ATTACK</div>
+            <div id="enemy-emoji">slime</div>
+            <h3 id="enemy-name">Slime</h3>
+            
+            <div class="bar-container">
+                <div id="enemy-hp-bar" class="bar-fill hp-fill" style="width: 100%"></div>
+                <div id="enemy-hp-text" class="bar-text">HP: 50/50</div>
+            </div>
         </div>
 
-        <div id="controls">
-            <button class="btn" id="btn-str" onclick="train('str')">⚔️ 特訓 (STR)<span>HP -15</span></button>
-            <button class="btn" id="btn-int" onclick="train('int')">📚 瞑想 (INT)<span>HP -15</span></button>
-            <button class="btn" id="btn-luck" onclick="train('luck')">🎲 探索 (LUCK)<span>HP -15</span></button>
-            <button class="btn" id="btn-eat" onclick="eat()">🍖 食事 (Heal)<span>HP +40</span></button>
+        <div class="bar-container">
+            <div id="xp-bar" class="bar-fill xp-fill" style="width: 0%"></div>
+            <div id="xp-text" class="bar-text">LV.1 (0/100)</div>
         </div>
 
-        <div id="evolution-overlay">
-            <div id="evo-title">EVOLUTION!</div>
-            <div id="evo-desc">新たな姿へ進化しました</div>
-            <button id="evo-btn" onclick="closeOverlay()">OK</button>
-        </div>
+        <div id="log"></div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Canvasサイズ調整
-        const rect = document.getElementById('canvas-wrapper').getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
+    <div class="panel">
+        <h2>👤 STATUS & EQUIPMENT</h2>
+        <div id="stats-grid">
+            <div>LV: <span id="st-lv" class="stat-val">1</span></div>
+            <div>HP: <span id="st-hp" class="stat-val">100/100</span></div>
+            <div>ATK: <span id="st-atk" class="stat-val">10</span></div>
+            <div>DEF: <span id="st-def" class="stat-val">0</span></div>
+        </div>
+        <hr style="border-color:#333">
+        <div>Weap: <span id="eq-weap" class="rarity-1">None</span></div>
+        <div>Armor: <span id="eq-armor" class="rarity-1">None</span></div>
 
-        // ゲーム状態
-        let stats = {
-            lv: 1,
-            exp: 0,
-            nextExp: 3, // 最初はすぐ進化
-            hp: 100,
-            maxHp: 100,
-            str: 5,
-            int: 5,
-            luck: 5
-        };
+        <h2>🎒 MATERIALS</h2>
+        <div id="material-list" style="font-size:12px; display: grid; grid-template-columns: 1fr 1fr; gap:5px;">
+            </div>
+    </div>
 
-        // 生き物の定義
-        let creature = {
-            type: 'blob', // blob, fire, water, leaf, gold, dark, god
-            name: 'プチ精霊',
-            color: '#00ccff',
-            size: 40,
-            eyeSize: 4,
-            pulseSpeed: 0.05,
-            particles: []
-        };
-        
-        let frame = 0;
-        let isAnimating = true;
+    <div class="panel">
+        <h2>🔨 BLACKSMITH (Crafting)</h2>
+        <div id="recipe-list" class="item-list">
+            </div>
+    </div>
+</div>
 
-        // 進化ツリー定義
-        const EVOLUTIONS = {
-            'blob': { next: 5, desc: "まだ何も知らない純粋な精霊" },
-            // 第2段階
-            'warrior': { color: '#ff4444', name: 'イフリート', desc: "闘争本能に目覚めた炎の精霊" },
-            'mage':    { color: '#4444ff', name: 'ウンディーネ', desc: "知性を宿した水の精霊" },
-            'thief':   { color: '#ffff44', name: 'トレジャー', desc: "富と運を司る黄金の精霊" },
-            // 第3段階 (最終)
-            'demon':   { color: '#880000', name: '魔神アシュラ', desc: "力を極めし破壊の化身" },
-            'sage':    { color: '#8844ff', name: '大賢者', desc: "宇宙の真理に到達した存在" },
-            'joker':   { color: '#00ff00', name: 'トリックスター', desc: "運命すら騙す幻影の王" },
-            'hero':    { color: '#ffffff', name: '星の救世主', desc: "バランスよく育った奇跡の存在" }
-        };
+<script>
+    // --- データベース ---
+    const MATERIALS = {
+        'gel': { name: 'スライムゼリー', rarity: 1 },
+        'stone': { name: '硬い石', rarity: 1 },
+        'wood': { name: '丈夫な枝', rarity: 1 },
+        'iron': { name: '鉄鉱石', rarity: 2 },
+        'fang': { name: '猛獣の牙', rarity: 2 },
+        'obsidian': { name: '黒曜石', rarity: 3 },
+        'scale': { name: '竜の鱗', rarity: 3 },
+        'orb': { name: '魔王の宝玉', rarity: 4 }
+    };
 
-        // --- メインループ ---
-        function loop() {
-            if(!isAnimating) return;
-            frame++;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const ENEMIES = [
+        // Zone 0
+        { name: 'Slime', emoji: '💧', hp: 30, atk: 5, xp: 10, drop: 'gel', rate: 0.7 },
+        { name: 'Golem', emoji: '🗿', hp: 60, atk: 8, xp: 20, drop: 'stone', rate: 0.5 },
+        // Zone 1
+        { name: 'Treant', emoji: '🌳', hp: 150, atk: 15, xp: 40, drop: 'wood', rate: 0.6 },
+        { name: 'Wolf', emoji: '🐺', hp: 120, atk: 25, xp: 50, drop: 'fang', rate: 0.5 },
+        // Zone 2
+        { name: 'Knight', emoji: '🛡️', hp: 400, atk: 40, xp: 100, drop: 'iron', rate: 0.5 },
+        { name: 'Dragon', emoji: '🐉', hp: 800, atk: 80, xp: 200, drop: 'scale', rate: 0.4 },
+        // Zone 3
+        { name: 'Demon', emoji: '👿', hp: 2000, atk: 150, xp: 500, drop: 'obsidian', rate: 0.4 },
+        { name: 'Overlord', emoji: '👑', hp: 5000, atk: 300, xp: 2000, drop: 'orb', rate: 1.0 }
+    ];
 
-            drawCreature();
-            updateParticles();
-            
-            requestAnimationFrame(loop);
-        }
-        loop();
+    const RECIPES = [
+        { id: 'w1', name: '石の剣', type: 'weapon', atk: 10, def: 0, req: { 'stone': 3, 'gel': 2 }, rarity: 1 },
+        { id: 'a1', name: '木の盾', type: 'armor', atk: 0, def: 5, req: { 'wood': 3, 'gel': 2 }, rarity: 1 },
+        { id: 'w2', name: '狼牙の短剣', type: 'weapon', atk: 25, def: 0, req: { 'fang': 5, 'wood': 2 }, rarity: 2 },
+        { id: 'a2', name: '鉄の鎧', type: 'armor', atk: 0, def: 15, req: { 'iron': 5, 'stone': 5 }, rarity: 2 },
+        { id: 'w3', name: 'ドラゴンスレイヤー', type: 'weapon', atk: 80, def: 10, req: { 'scale': 3, 'iron': 10, 'obsidian': 2 }, rarity: 3 },
+        { id: 'a3', name: '竜鱗の盾', type: 'armor', atk: 5, def: 40, req: { 'scale': 5, 'iron': 5 }, rarity: 3 },
+        { id: 'w4', name: '魔剣グラム', type: 'weapon', atk: 200, def: 20, req: { 'orb': 1, 'obsidian': 10, 'scale': 5 }, rarity: 4 },
+        { id: 'a4', name: '神の鎧', type: 'armor', atk: 20, def: 100, req: { 'orb': 1, 'obsidian': 10, 'iron': 20 }, rarity: 4 }
+    ];
 
-        // --- 描画ロジック (プロシージャルアニメーション) ---
-        function drawCreature() {
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2 + Math.sin(frame * creature.pulseSpeed) * 10;
-            
-            // 本体（揺らぐ円）
-            ctx.fillStyle = creature.color;
-            ctx.beginPath();
-            
-            // 生き物っぽく頂点を動かす
-            const points = 12;
-            for(let i=0; i<=points; i++) {
-                const angle = (i / points) * Math.PI * 2;
-                // ノイズを加える
-                const rOffset = Math.sin(frame * 0.1 + i * 1.5) * 3 + Math.sin(frame * 0.05) * (stats.lv * 2); 
-                const r = creature.size + rOffset;
-                const x = cx + Math.cos(angle) * r;
-                const y = cy + Math.sin(angle) * r;
-                if(i===0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
-            ctx.closePath();
-            
-            // 光彩エフェクト
-            ctx.shadowBlur = 20 + Math.sin(frame * 0.1) * 10;
-            ctx.shadowColor = creature.color;
-            ctx.fill();
-            ctx.shadowBlur = 0;
+    // --- ゲーム状態 ---
+    let player = {
+        lv: 1, xp: 0, nextXp: 100,
+        hp: 100, maxHp: 100,
+        baseAtk: 5, baseDef: 0,
+        inventory: {}, // { 'gel': 10, 'stone': 2 ... }
+        equipment: { weapon: null, armor: null },
+        unlockedRecipes: [] // 本来は進行度で解放するが今回は全表示
+    };
 
-            // 目
-            ctx.fillStyle = 'white';
-            const eyeOffset = Math.sin(frame * 0.05) * 2;
-            
-            // 目の形や数を進化によって変える
-            if (creature.type === 'mage' || creature.type === 'sage') {
-                 // 1つ目
-                ctx.beginPath(); ctx.arc(cx, cy - 5, creature.eyeSize * 1.5, 0, Math.PI * 2); ctx.fill();
-            } else if (creature.type === 'demon') {
-                // 怖い目
-                ctx.fillStyle = '#ffff00';
-                ctx.beginPath(); ctx.moveTo(cx-15, cy-10); ctx.lineTo(cx-5, cy); ctx.lineTo(cx-15, cy+5); ctx.fill();
-                ctx.beginPath(); ctx.moveTo(cx+15, cy-10); ctx.lineTo(cx+5, cy); ctx.lineTo(cx+15, cy+5); ctx.fill();
-            } else {
-                // 普通の目
-                ctx.beginPath(); ctx.arc(cx - 12, cy - 5 + eyeOffset, creature.eyeSize, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(cx + 12, cy - 5 + eyeOffset, creature.eyeSize, 0, Math.PI * 2); ctx.fill();
-            }
-            
-            // レベルアップエフェクト
-            if (frame % 60 === 0 && stats.exp > 0) {
-                 // 少し光らせるなど
-            }
-        }
+    let currentZone = 0;
+    let currentEnemy = null; // { ...stats, maxHp }
+    let combatTimer = null;
 
-        // --- パーティクルシステム ---
-        function spawnParticles(x, y, color, count) {
-            for(let i=0; i<count; i++) {
-                creature.particles.push({
-                    x: x, y: y,
-                    vx: (Math.random() - 0.5) * 5,
-                    vy: (Math.random() - 0.5) * 5,
-                    life: 1.0,
-                    color: color
-                });
-            }
-        }
-        function updateParticles() {
-            for(let i=creature.particles.length-1; i>=0; i--) {
-                let p = creature.particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.life -= 0.03;
-                
-                ctx.globalAlpha = p.life;
-                ctx.fillStyle = p.color;
-                ctx.fillRect(p.x, p.y, 4, 4);
-                ctx.globalAlpha = 1.0;
-
-                if(p.life <= 0) creature.particles.splice(i, 1);
-            }
-        }
-
-        // --- ゲームロジック ---
-        function updateUI() {
-            document.getElementById('val-lv').innerText = stats.lv;
-            document.getElementById('val-str').innerText = stats.str;
-            document.getElementById('val-int').innerText = stats.int;
-            document.getElementById('val-luck').innerText = stats.luck;
-            
-            const hpPct = Math.max(0, (stats.hp / stats.maxHp) * 100);
-            const hpBar = document.getElementById('hp-bar');
-            hpBar.style.width = hpPct + '%';
-            hpBar.style.background = hpPct > 20 ? '#00ff88' : '#ff0000';
-
-            // ボタン制御
-            const disabled = stats.hp < 15;
-            document.getElementById('btn-str').disabled = disabled;
-            document.getElementById('btn-int').disabled = disabled;
-            document.getElementById('btn-luck').disabled = disabled;
-            document.getElementById('btn-eat').disabled = stats.hp >= stats.maxHp;
-        }
-
-        function log(msg) {
-            const el = document.getElementById('log');
-            el.innerText = msg;
-            el.style.opacity = 1;
-            // アニメーションリセット用
-            el.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 300 });
-        }
-
-        function train(type) {
-            if (stats.hp < 15) return;
-            
-            stats.hp -= 15;
-            stats.exp++;
-            
-            // ステータス上昇
-            const gain = Math.floor(Math.random() * 3) + 2; // 2~4
-            stats[type] += gain;
-
-            // 演出
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2;
-            let color = '#fff';
-            if(type === 'str') { log(`筋トレ完了！ STR +${gain}`); color = '#ff5555'; }
-            if(type === 'int') { log(`勉強しました。 INT +${gain}`); color = '#55aaff'; }
-            if(type === 'luck') { log(`何かを拾った！ LUCK +${gain}`); color = '#ffdd55'; }
-            
-            spawnParticles(cx, cy, color, 10);
-            
-            // 進化チェック
-            if (stats.exp >= stats.nextExp) {
-                levelUp();
-            }
-            updateUI();
-        }
-
-        function eat() {
-            if (stats.hp >= stats.maxHp) return;
-            stats.hp = Math.min(stats.maxHp, stats.hp + 40);
-            log("ご飯を食べました。HP回復！");
-            spawnParticles(canvas.width/2, canvas.height/2, '#00ff00', 15);
-            updateUI();
-        }
-
-        function petCreature(e) {
-            // クリックで撫でる
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            spawnParticles(x, y, '#ff99cc', 5);
-            log("なでなで...");
-        }
-
-        function levelUp() {
-            stats.lv++;
-            stats.exp = 0;
-            stats.nextExp = Math.floor(stats.nextExp * 1.5);
-            stats.maxHp += 20;
-            stats.hp = stats.maxHp;
-
-            // 進化判定ロジック
-            // LV 5で第2形態、LV 10で最終形態
-            let newType = null;
-
-            if (stats.lv === 5) {
-                if (stats.str > stats.int && stats.str > stats.luck) newType = 'warrior';
-                else if (stats.int > stats.str && stats.int > stats.luck) newType = 'mage';
-                else newType = 'thief';
-            }
-            else if (stats.lv === 10) {
-                // 最終進化分岐
-                const base = creature.type;
-                if (base === 'warrior') newType = 'demon'; // 筋力ルート
-                else if (base === 'mage') newType = 'sage'; // 知力ルート
-                else if (base === 'thief') newType = 'joker'; // 運ルート
-                else {
-                    // バランス型（隠し）
-                    if (Math.abs(stats.str - stats.int) < 10 && Math.abs(stats.int - stats.luck) < 10) {
-                        newType = 'hero';
-                    } else {
-                         // デフォルト進化
-                         if(stats.str >= stats.int) newType = 'demon';
-                         else newType = 'sage';
-                    }
-                }
-            }
-
-            if (newType) {
-                evolve(newType);
-            } else {
-                log(`レベルアップ！ Lv.${stats.lv}`);
-                creature.size += 5; // 少し大きくなる
-                spawnParticles(canvas.width/2, canvas.height/2, '#ffffff', 30);
-            }
-        }
-
-        function evolve(typeKey) {
-            const data = EVOLUTIONS[typeKey];
-            creature.type = typeKey;
-            creature.color = data.color;
-            creature.name = data.name;
-            creature.size += 15;
-            
-            // オーバーレイ表示
-            const ol = document.getElementById('evolution-overlay');
-            ol.style.opacity = 1;
-            ol.style.pointerEvents = 'auto';
-            document.getElementById('evo-title').innerText = data.name;
-            document.getElementById('evo-title').style.color = data.color;
-            document.getElementById('evo-desc').innerText = data.desc;
-            
-            spawnParticles(canvas.width/2, canvas.height/2, data.color, 100);
-        }
-
-        function closeOverlay() {
-            const ol = document.getElementById('evolution-overlay');
-            ol.style.opacity = 0;
-            ol.style.pointerEvents = 'none';
-            // ゲームクリア判定
-            if (stats.lv >= 10) {
-                log("究極進化を達成しました！ありがとう！");
-                // これ以上は進化しない
-                stats.nextExp = 9999; 
-            }
-        }
-
+    // --- 初期化 ---
+    function init() {
+        // インベントリ初期化
+        for(let key in MATERIALS) player.inventory[key] = 0;
+        spawnEnemy();
         updateUI();
+        
+        // 自動回復ループ
+        setInterval(() => {
+            if(player.hp < player.maxHp) {
+                player.hp = Math.min(player.maxHp, player.hp + Math.max(1, Math.floor(player.maxHp * 0.05)));
+                updateStatsUI();
+            }
+        }, 1000);
+    }
 
-    </script>
+    // --- バトルシステム ---
+    function setZone(z) {
+        currentZone = z;
+        document.querySelectorAll('.zone-btn').forEach((b, i) => {
+            b.classList.toggle('active', i === z);
+        });
+        spawnEnemy();
+        log(`Zone ${z+1} に移動しました`);
+    }
+
+    function spawnEnemy() {
+        const zoneEnemies = ENEMIES.slice(currentZone * 2, currentZone * 2 + 2);
+        const template = zoneEnemies[Math.floor(Math.random() * zoneEnemies.length)];
+        
+        currentEnemy = { ...template, maxHp: template.hp };
+        updateBattleUI();
+    }
+
+    function playerAttack() {
+        if (!currentEnemy || currentEnemy.hp <= 0) return;
+
+        // ダメージ計算
+        const stats = getPlayerStats();
+        // クリティカル判定
+        const isCrit = Math.random() < 0.1;
+        let dmg = Math.floor(stats.atk * (0.9 + Math.random() * 0.2));
+        if(isCrit) dmg *= 2;
+
+        currentEnemy.hp -= dmg;
+        
+        // エフェクト
+        const emoji = document.getElementById('enemy-emoji');
+        emoji.style.transform = "scale(0.8) rotate(10deg)";
+        setTimeout(() => emoji.style.transform = "scale(1) rotate(0deg)", 100);
+
+        if (currentEnemy.hp <= 0) {
+            winBattle();
+        } else {
+            enemyAttack();
+        }
+        updateBattleUI();
+    }
+
+    function enemyAttack() {
+        const stats = getPlayerStats();
+        let dmg = Math.max(1, currentEnemy.atk - stats.def);
+        // ランダム幅
+        dmg = Math.floor(dmg * (0.9 + Math.random() * 0.2));
+        
+        player.hp = Math.max(0, player.hp - dmg);
+        if (player.hp <= 0) {
+            log(`あなたは倒れた... (HPが回復するまで待機)`);
+            player.hp = 0; // そのまま
+        }
+    }
+
+    function winBattle() {
+        const dropItem = MATERIALS[currentEnemy.drop];
+        const gotDrop = Math.random() < currentEnemy.rate;
+        
+        // XP獲得
+        player.xp += currentEnemy.xp;
+        let logMsg = `<b>${currentEnemy.name}</b>を倒した! XP+${currentEnemy.xp}`;
+        
+        // ドロップ獲得
+        if(gotDrop) {
+            player.inventory[currentEnemy.drop]++;
+            logMsg += ` <span class="log-loot">[${dropItem.name}]GET!</span>`;
+        }
+
+        log(logMsg);
+
+        // レベルアップ判定
+        if(player.xp >= player.nextXp) {
+            player.lv++;
+            player.xp -= player.nextXp;
+            player.nextXp = Math.floor(player.nextXp * 1.5);
+            player.maxHp += 20;
+            player.baseAtk += 2;
+            player.hp = player.maxHp;
+            log(`<span class="log-lvl">LEVEL UP! Lv.${player.lv}</span>`);
+        }
+
+        setTimeout(spawnEnemy, 500);
+        updateUI();
+    }
+
+    // --- クラフトシステム ---
+    function craft(recipeId) {
+        const recipe = RECIPES.find(r => r.id === recipeId);
+        
+        // 素材消費
+        for(let mat in recipe.req) {
+            player.inventory[mat] -= recipe.req[mat];
+        }
+
+        // 装備
+        if(recipe.type === 'weapon') player.equipment.weapon = recipe;
+        if(recipe.type === 'armor') player.equipment.armor = recipe;
+
+        log(`${recipe.name}を作成し、装備しました！`);
+        updateUI();
+    }
+
+    function canCraft(recipe) {
+        for(let mat in recipe.req) {
+            if(player.inventory[mat] < recipe.req[mat]) return false;
+        }
+        return true;
+    }
+
+    // --- ステータス計算 ---
+    function getPlayerStats() {
+        let atk = player.baseAtk;
+        let def = player.baseDef;
+
+        if(player.equipment.weapon) {
+            atk += player.equipment.weapon.atk;
+            def += player.equipment.weapon.def;
+        }
+        if(player.equipment.armor) {
+            atk += player.equipment.armor.atk;
+            def += player.equipment.armor.def;
+        }
+        return { atk, def };
+    }
+
+    // --- UI更新 ---
+    function log(msg) {
+        const div = document.getElementById('log');
+        div.innerHTML = `<div>${msg}</div>` + div.innerHTML;
+    }
+
+    function updateBattleUI() {
+        if(!currentEnemy) return;
+        document.getElementById('enemy-name').innerText = currentEnemy.name;
+        document.getElementById('enemy-emoji').innerText = currentEnemy.emoji;
+        
+        const hpPct = (currentEnemy.hp / currentEnemy.maxHp) * 100;
+        document.getElementById('enemy-hp-bar').style.width = Math.max(0, hpPct) + "%";
+        document.getElementById('enemy-hp-text').innerText = `HP: ${currentEnemy.hp}/${currentEnemy.maxHp}`;
+        
+        updateStatsUI();
+    }
+
+    function updateStatsUI() {
+        const stats = getPlayerStats();
+        document.getElementById('st-lv').innerText = player.lv;
+        document.getElementById('st-hp').innerText = `${player.hp}/${player.maxHp}`;
+        document.getElementById('st-atk').innerText = stats.atk;
+        document.getElementById('st-def').innerText = stats.def;
+
+        const xpPct = (player.xp / player.nextXp) * 100;
+        document.getElementById('xp-bar').style.width = xpPct + "%";
+        document.getElementById('xp-text').innerText = `LV.${player.lv} (${player.xp}/${player.nextXp})`;
+
+        if(player.equipment.weapon) {
+            const w = player.equipment.weapon;
+            document.getElementById('eq-weap').innerText = w.name;
+            document.getElementById('eq-weap').className = `rarity-${w.rarity}`;
+        }
+        if(player.equipment.armor) {
+            const a = player.equipment.armor;
+            document.getElementById('eq-armor').innerText = a.name;
+            document.getElementById('eq-armor').className = `rarity-${a.rarity}`;
+        }
+    }
+
+    function updateUI() {
+        updateStatsUI();
+        
+        // 素材リスト
+        const matDiv = document.getElementById('material-list');
+        matDiv.innerHTML = '';
+        for(let key in MATERIALS) {
+            const count = player.inventory[key];
+            if(count > 0 || true) { // 全て表示
+                const m = MATERIALS[key];
+                const el = document.createElement('div');
+                el.className = `rarity-${m.rarity}`;
+                el.innerText = `${m.name}: ${count}`;
+                if(count === 0) el.style.opacity = 0.3;
+                matDiv.appendChild(el);
+            }
+        }
+
+        // レシピリスト
+        const recDiv = document.getElementById('recipe-list');
+        recDiv.innerHTML = '';
+        RECIPES.forEach(r => {
+            const el = document.createElement('div');
+            el.className = 'item-row';
+            
+            let reqHtml = '';
+            for(let mat in r.req) {
+                const has = player.inventory[mat];
+                const need = r.req[mat];
+                const color = has >= need ? '#8f8' : '#f88';
+                reqHtml += `<span style="color:${color}">${MATERIALS[mat].name} ${has}/${need}</span> `;
+            }
+
+            const btnDisabled = !canCraft(r) ? 'disabled' : '';
+
+            el.innerHTML = `
+                <div class="item-info">
+                    <span class="item-name rarity-${r.rarity}">${r.name}</span>
+                    <span class="item-req">${reqHtml}</span>
+                    <span style="font-size:10px">ATK+${r.atk} DEF+${r.def}</span>
+                </div>
+                <button class="craft-btn" onclick="craft('${r.id}')" ${btnDisabled}>CRAFT</button>
+            `;
+            recDiv.appendChild(el);
+        });
+    }
+
+    // スタート
+    init();
+
+</script>
 </body>
 </html>
