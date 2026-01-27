@@ -2,436 +2,272 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Infinity Crafter RPG</title>
+    <title>Gacha Heroes: Mugen Battle</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700&display=swap');
+
+        :root {
+            --bg-dark: #1a1a2e;
+            --bg-panel: #16213e;
+            --accent: #e94560;
+            --text-main: #fff;
+            --ssr-color: linear-gradient(135deg, #ff00cc, #3333ff, #00ccff, #ffcc00);
+        }
 
         body {
-            background: #121212; color: #e0e0e0;
-            font-family: 'Roboto Mono', monospace;
-            margin: 0; padding: 20px;
-            display: flex; justify-content: center; height: 95vh;
+            margin: 0; padding: 0;
+            background: #0f0f1a; color: white;
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            display: flex; justify-content: center; height: 100vh;
         }
 
-        /* レイアウト */
-        #game-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto 1fr;
-            gap: 15px;
-            width: 1000px; height: 100%;
+        /* スマホ画面風コンテナ */
+        #app {
+            width: 100%; max-width: 450px; height: 100%;
+            background: var(--bg-dark);
+            position: relative;
+            display: flex; flex-direction: column;
+            border-left: 1px solid #333; border-right: 1px solid #333;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
 
-        .panel {
-            background: #1e1e1e; border: 2px solid #333;
-            border-radius: 8px; padding: 15px;
-            overflow-y: auto;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        /* --- 画面共通 --- */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column;
+            padding-bottom: 70px; /* フッター分 */
+            box-sizing: border-box;
+            background: var(--bg-dark);
         }
+        .screen.active { display: flex; }
 
-        h2 { margin-top: 0; border-bottom: 2px solid #444; padding-bottom: 5px; font-size: 18px; color: #aaa; }
-        
-        /* バトルエリア */
-        #battle-panel { grid-row: 1 / 3; display: flex; flex-direction: column; }
-        #enemy-view {
-            flex-grow: 1; background: #000; border: 1px solid #444;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            margin-bottom: 10px; position: relative;
-        }
-        #enemy-emoji { font-size: 80px; transition: transform 0.1s; cursor: pointer; user-select: none; }
-        #enemy-emoji:active { transform: scale(0.9); }
-        
-        .bar-container { width: 80%; height: 20px; background: #333; margin: 5px 0; border-radius: 10px; overflow: hidden; position: relative;}
-        .bar-fill { height: 100%; transition: width 0.2s; }
-        .hp-fill { background: #ff4444; }
-        .xp-fill { background: #44ff88; }
-        .bar-text { position: absolute; width: 100%; text-align: center; top: 0; line-height: 20px; font-size: 12px; color: white; text-shadow: 1px 1px 0 #000; }
-
-        /* コントロール */
-        .zones { display: flex; gap: 5px; margin-bottom: 10px; }
-        .zone-btn {
-            background: #333; color: #888; border: 1px solid #555;
-            padding: 5px 10px; cursor: pointer; font-family: inherit;
-        }
-        .zone-btn.active { background: #e0e0e0; color: #000; font-weight: bold; }
-
-        /* ログ */
-        #log { height: 100px; background: #000; font-size: 12px; padding: 5px; overflow-y: scroll; color: #888; border: 1px solid #333; }
-        .log-loot { color: #ffd700; }
-        .log-lvl { color: #00ff88; font-weight: bold; }
-
-        /* クラフト & インベントリ */
-        .item-list { display: flex; flex-direction: column; gap: 5px; }
-        .item-row {
+        /* ヘッダー */
+        .header {
+            padding: 10px 15px;
+            background: rgba(0,0,0,0.8);
+            border-bottom: 1px solid #444;
             display: flex; justify-content: space-between; align-items: center;
-            background: #2a2a2a; padding: 8px; border-radius: 4px; border: 1px solid #333;
+            z-index: 10;
         }
-        .item-info { display: flex; flex-direction: column; }
-        .item-name { font-weight: bold; }
-        .item-req { font-size: 11px; color: #888; }
+        .currency { display: flex; gap: 15px; font-size: 14px; }
+        .res-box { background: #333; padding: 4px 10px; border-radius: 15px; display: flex; align-items: center; }
+
+        /* フッターメニュー */
+        .footer {
+            position: absolute; bottom: 0; width: 100%; height: 60px;
+            background: #222; border-top: 1px solid #444;
+            display: flex; justify-content: space-around; align-items: center;
+            z-index: 20;
+        }
+        .menu-btn {
+            background: none; border: none; color: #888;
+            font-size: 10px; display: flex; flex-direction: column; align-items: center;
+            cursor: pointer; width: 100%;
+        }
+        .menu-btn.active { color: #fff; text-shadow: 0 0 5px var(--accent); }
+        .menu-btn span { font-size: 20px; margin-bottom: 2px; }
+
+        /* --- ホーム画面 --- */
+        #home-screen { align-items: center; justify-content: center; background: radial-gradient(circle, #2a2a40, #000); }
+        .hero-banner { font-size: 120px; filter: drop-shadow(0 0 20px rgba(255,255,255,0.3)); animation: float 3s infinite ease-in-out; }
+        .quest-btn {
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+            color: white; border: none; padding: 15px 50px; border-radius: 30px;
+            font-size: 24px; font-weight: bold; margin-top: 30px;
+            box-shadow: 0 5px 15px rgba(255, 75, 43, 0.4);
+            cursor: pointer; transition: transform 0.1s;
+        }
+        .quest-btn:active { transform: scale(0.95); }
+
+        /* --- ガチャ画面 --- */
+        #gacha-screen { padding: 20px; align-items: center; }
+        .gacha-machine { 
+            width: 200px; height: 200px; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%23444"/></svg>') no-repeat center;
+            background-size: contain; margin: 40px 0;
+            position: relative;
+        }
+        .gacha-btn {
+            background: linear-gradient(45deg, #11998e, #38ef7d);
+            width: 90%; padding: 15px; border-radius: 10px; border: none;
+            color: white; font-size: 18px; font-weight: bold; margin-bottom: 10px; cursor: pointer;
+        }
+        .gacha-result {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 50;
+            display: none; flex-wrap: wrap; justify-content: center; align-items: center; padding: 20px;
+        }
+        .card {
+            width: 80px; height: 110px; margin: 5px; background: #333;
+            border-radius: 5px; border: 2px solid #555;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative; overflow: hidden; animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        /* レア度演出 */
+        .card.R { border-color: #aaa; box-shadow: 0 0 5px #aaa; }
+        .card.SR { border-color: #ffd700; box-shadow: 0 0 10px #ffd700; background: radial-gradient(circle, #554400, #222); }
+        .card.SSR { 
+            border: 3px solid transparent; 
+            background: linear-gradient(#222, #222) padding-box, var(--ssr-color) border-box; 
+            box-shadow: 0 0 20px rgba(255, 0, 200, 0.5);
+        }
+        .card-icon { font-size: 40px; }
+        .card-name { font-size: 10px; margin-top: 5px; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; }
+        .new-badge { position: absolute; top: 0; right: 0; background: red; font-size: 8px; padding: 2px 4px; border-radius: 0 0 0 5px; }
+
+        /* --- 編成画面 --- */
+        #party-screen { padding: 10px; overflow-y: auto; }
+        .party-slot { display: flex; justify-content: space-around; padding: 20px 0; background: #222; border-radius: 10px; margin-bottom: 20px; }
+        .slot { width: 80px; height: 80px; background: #111; border: 2px dashed #444; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 30px; cursor: pointer; position: relative; }
+        .char-list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        .char-item { background: #333; padding: 5px; border-radius: 5px; text-align: center; cursor: pointer; }
+        .char-item.selected { border: 2px solid #00ff00; }
+
+        /* --- バトル画面 --- */
+        #battle-screen { background: url('https://img.freepik.com/free-vector/dark-cave-landscape_1308-48767.jpg?w=740') no-repeat center center; background-size: cover; }
+        .battle-area { flex-grow: 1; position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
         
-        /* レアリティ色 */
-        .rarity-1 { color: #fff; } /* Common */
-        .rarity-2 { color: #4488ff; } /* Rare */
-        .rarity-3 { color: #d044ff; } /* Epic */
-        .rarity-4 { color: #ffcc00; text-shadow: 0 0 5px rgba(255,200,0,0.5); } /* Legendary */
+        /* 敵 */
+        .enemy-container { display: flex; justify-content: center; align-items: flex-end; height: 150px; position: relative; }
+        .enemy { font-size: 100px; filter: drop-shadow(0 0 10px red); transition: transform 0.1s; }
+        .enemy-hp { position: absolute; top: -20px; width: 200px; height: 10px; background: #333; border: 1px solid #fff; }
+        .hp-bar-fill { height: 100%; background: red; width: 100%; transition: width 0.2s; }
+        
+        /* 味方 */
+        .party-container { display: flex; justify-content: space-around; margin-bottom: 20px; }
+        .party-char { text-align: center; position: relative; transition: transform 0.1s; }
+        .party-char span { font-size: 50px; display: block; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); }
+        .char-hp { width: 50px; height: 5px; background: #333; margin: 0 auto; }
+        .char-hp-fill { height: 100%; background: #00ff00; width: 100%; }
 
-        button.craft-btn, button.equip-btn {
-            background: #333; color: white; border: 1px solid #555;
-            padding: 5px 10px; cursor: pointer; font-family: inherit;
-        }
-        button.craft-btn:hover { background: #555; }
-        button:disabled { opacity: 0.3; cursor: not-allowed; }
+        /* コマンド */
+        .command-panel { height: 120px; background: rgba(0,0,0,0.8); padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .cmd-btn { background: #444; color: white; border: 1px solid #666; font-size: 16px; border-radius: 5px; cursor: pointer; }
+        .cmd-btn:active { background: #666; }
+        .cmd-atk { background: #800; border-color: #d00; }
+        .cmd-skill { background: #008; border-color: #44f; }
 
-        /* ステータス */
-        #stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; }
-        .stat-val { font-weight: bold; color: white; }
+        /* ダメージポップアップ */
+        .dmg-popup { position: absolute; color: white; font-size: 30px; font-weight: bold; text-shadow: 2px 2px 0 #000; pointer-events: none; animation: popUp 0.8s forwards; }
+        
+        /* アニメーション定義 */
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+        @keyframes pop { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes popUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(1.5); opacity: 0; } }
+        @keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } 100% { transform: translateX(0); } }
 
-        /* タブ切り替え用（スマホなど画面が狭いとき用だが今回はPC想定で全表示） */
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <div id="battle-panel" class="panel">
-        <h2>⚔️ BATTLE ZONE</h2>
-        <div class="zones">
-            <button class="zone-btn active" onclick="setZone(0)">Zone 1: 平原</button>
-            <button class="zone-btn" onclick="setZone(1)">Zone 2: 森林</button>
-            <button class="zone-btn" onclick="setZone(2)">Zone 3: 火山</button>
-            <button class="zone-btn" onclick="setZone(3)">Zone 4: 魔界</button>
+<div id="app">
+    <div class="header">
+        <div style="font-weight:bold;">⚔️ Gacha RPG</div>
+        <div class="currency">
+            <div class="res-box">💰 <span id="val-gold">0</span></div>
+            <div class="res-box">💎 <span id="val-gem">1000</span></div>
         </div>
+    </div>
 
-        <div id="enemy-view" onclick="playerAttack()">
-            <div style="position:absolute; top:10px; color:#888;">CLICK TO ATTACK</div>
-            <div id="enemy-emoji">slime</div>
-            <h3 id="enemy-name">Slime</h3>
+    <div id="home-screen" class="screen active">
+        <div class="hero-banner">🏰</div>
+        <div style="text-align:center; margin-top:20px;">
+            <h2>冒険へ出発</h2>
+            <p>現在のステージ: <span id="stage-num">1-1</span></p>
+        </div>
+        <button class="quest-btn" onclick="startBattle()">BATTLE START</button>
+    </div>
+
+    <div id="gacha-screen" class="screen">
+        <h2>英雄召喚</h2>
+        <div class="gacha-machine">
+            <div style="font-size:100px; text-align:center; line-height:200px;">🔮</div>
+        </div>
+        <button class="gacha-btn" onclick="pullGacha(1)">単発召喚 (💎300)</button>
+        <button class="gacha-btn" onclick="pullGacha(10)">10連召喚 (💎3000)</button>
+        <div id="gacha-result" class="gacha-result" onclick="this.style.display='none'"></div>
+    </div>
+
+    <div id="party-screen" class="screen">
+        <h2>パーティ編成</h2>
+        <div class="party-slot" id="party-editor">
+            </div>
+        <h3>所持キャラクター</h3>
+        <div class="char-list" id="inventory-list">
+            </div>
+    </div>
+
+    <div id="battle-screen" class="screen">
+        <div class="battle-area">
+            <div style="color:white; text-align:center; background:rgba(0,0,0,0.5); padding:5px;">
+                WAVE <span id="battle-wave">1/3</span>
+            </div>
             
-            <div class="bar-container">
-                <div id="enemy-hp-bar" class="bar-fill hp-fill" style="width: 100%"></div>
-                <div id="enemy-hp-text" class="bar-text">HP: 50/50</div>
+            <div class="enemy-container">
+                <div class="enemy-hp"><div class="hp-bar-fill" id="enemy-hp-bar"></div></div>
+                <div class="enemy" id="enemy-sprite">🐲</div>
             </div>
-        </div>
 
-        <div class="bar-container">
-            <div id="xp-bar" class="bar-fill xp-fill" style="width: 0%"></div>
-            <div id="xp-text" class="bar-text">LV.1 (0/100)</div>
+            <div class="party-container" id="battle-party">
+                </div>
         </div>
-
-        <div id="log"></div>
+        <div class="command-panel" id="cmd-panel">
+            <button class="cmd-btn cmd-atk" onclick="playerAction('attack')">攻撃</button>
+            <button class="cmd-btn cmd-skill" onclick="playerAction('skill')">スキル</button>
+            <button class="cmd-btn" onclick="toggleAuto()">AUTO: <span id="auto-state">OFF</span></button>
+            <button class="cmd-btn" onclick="surrender()">撤退</button>
+        </div>
+        <div id="battle-result" class="gacha-result" style="flex-direction:column; background:rgba(0,0,0,0.85);">
+            <h1 id="result-title" style="font-size:40px; color:#ffdd00;">VICTORY</h1>
+            <p id="result-loot" style="font-size:20px;">獲得: 💰100 💎50</p>
+            <button class="quest-btn" onclick="endBattle()">OK</button>
+        </div>
     </div>
 
-    <div class="panel">
-        <h2>👤 STATUS & EQUIPMENT</h2>
-        <div id="stats-grid">
-            <div>LV: <span id="st-lv" class="stat-val">1</span></div>
-            <div>HP: <span id="st-hp" class="stat-val">100/100</span></div>
-            <div>ATK: <span id="st-atk" class="stat-val">10</span></div>
-            <div>DEF: <span id="st-def" class="stat-val">0</span></div>
-        </div>
-        <hr style="border-color:#333">
-        <div>Weap: <span id="eq-weap" class="rarity-1">None</span></div>
-        <div>Armor: <span id="eq-armor" class="rarity-1">None</span></div>
-
-        <h2>🎒 MATERIALS</h2>
-        <div id="material-list" style="font-size:12px; display: grid; grid-template-columns: 1fr 1fr; gap:5px;">
-            </div>
-    </div>
-
-    <div class="panel">
-        <h2>🔨 BLACKSMITH (Crafting)</h2>
-        <div id="recipe-list" class="item-list">
-            </div>
+    <div class="footer">
+        <button class="menu-btn active" onclick="showScreen('home-screen', this)"><span>🏠</span>ホーム</button>
+        <button class="menu-btn" onclick="showScreen('party-screen', this); renderPartyScreen();"><span>🛡️</span>編成</button>
+        <button class="menu-btn" onclick="showScreen('gacha-screen', this)"><span>💎</span>ガチャ</button>
     </div>
 </div>
 
 <script>
-    // --- データベース ---
-    const MATERIALS = {
-        'gel': { name: 'スライムゼリー', rarity: 1 },
-        'stone': { name: '硬い石', rarity: 1 },
-        'wood': { name: '丈夫な枝', rarity: 1 },
-        'iron': { name: '鉄鉱石', rarity: 2 },
-        'fang': { name: '猛獣の牙', rarity: 2 },
-        'obsidian': { name: '黒曜石', rarity: 3 },
-        'scale': { name: '竜の鱗', rarity: 3 },
-        'orb': { name: '魔王の宝玉', rarity: 4 }
-    };
-
-    const ENEMIES = [
-        // Zone 0
-        { name: 'Slime', emoji: '💧', hp: 30, atk: 5, xp: 10, drop: 'gel', rate: 0.7 },
-        { name: 'Golem', emoji: '🗿', hp: 60, atk: 8, xp: 20, drop: 'stone', rate: 0.5 },
-        // Zone 1
-        { name: 'Treant', emoji: '🌳', hp: 150, atk: 15, xp: 40, drop: 'wood', rate: 0.6 },
-        { name: 'Wolf', emoji: '🐺', hp: 120, atk: 25, xp: 50, drop: 'fang', rate: 0.5 },
-        // Zone 2
-        { name: 'Knight', emoji: '🛡️', hp: 400, atk: 40, xp: 100, drop: 'iron', rate: 0.5 },
-        { name: 'Dragon', emoji: '🐉', hp: 800, atk: 80, xp: 200, drop: 'scale', rate: 0.4 },
-        // Zone 3
-        { name: 'Demon', emoji: '👿', hp: 2000, atk: 150, xp: 500, drop: 'obsidian', rate: 0.4 },
-        { name: 'Overlord', emoji: '👑', hp: 5000, atk: 300, xp: 2000, drop: 'orb', rate: 1.0 }
+    /* --- データ定義 --- */
+    const CHAR_DB = [
+        { id: 1, name: "戦士", rarity: "N", icon: "⚔️", hp: 100, atk: 10 },
+        { id: 2, name: "弓兵", rarity: "N", icon: "🏹", hp: 80, atk: 12 },
+        { id: 3, name: "魔法使い", rarity: "R", icon: "🧙‍♀️", hp: 70, atk: 20 },
+        { id: 4, name: "僧侶", rarity: "R", icon: "✝️", hp: 90, atk: 5 },
+        { id: 5, name: "聖騎士", rarity: "SR", icon: "🛡️", hp: 200, atk: 15 },
+        { id: 6, name: "暗黒騎士", rarity: "SR", icon: "🦇", hp: 150, atk: 30 },
+        { id: 7, name: "竜の戦士", rarity: "SSR", icon: "🐉", hp: 300, atk: 50 },
+        { id: 8, name: "大天使", rarity: "SSR", icon: "👼", hp: 250, atk: 60 },
+        { id: 9, name: "魔王", rarity: "SSR", icon: "😈", hp: 400, atk: 80 }
     ];
 
-    const RECIPES = [
-        { id: 'w1', name: '石の剣', type: 'weapon', atk: 10, def: 0, req: { 'stone': 3, 'gel': 2 }, rarity: 1 },
-        { id: 'a1', name: '木の盾', type: 'armor', atk: 0, def: 5, req: { 'wood': 3, 'gel': 2 }, rarity: 1 },
-        { id: 'w2', name: '狼牙の短剣', type: 'weapon', atk: 25, def: 0, req: { 'fang': 5, 'wood': 2 }, rarity: 2 },
-        { id: 'a2', name: '鉄の鎧', type: 'armor', atk: 0, def: 15, req: { 'iron': 5, 'stone': 5 }, rarity: 2 },
-        { id: 'w3', name: 'ドラゴンスレイヤー', type: 'weapon', atk: 80, def: 10, req: { 'scale': 3, 'iron': 10, 'obsidian': 2 }, rarity: 3 },
-        { id: 'a3', name: '竜鱗の盾', type: 'armor', atk: 5, def: 40, req: { 'scale': 5, 'iron': 5 }, rarity: 3 },
-        { id: 'w4', name: '魔剣グラム', type: 'weapon', atk: 200, def: 20, req: { 'orb': 1, 'obsidian': 10, 'scale': 5 }, rarity: 4 },
-        { id: 'a4', name: '神の鎧', type: 'armor', atk: 20, def: 100, req: { 'orb': 1, 'obsidian': 10, 'iron': 20 }, rarity: 4 }
-    ];
+    const ENEMY_DB = ["🐺", "🦇", "🐍", "🕷️", "🐗", "👻", "👹", "🐲"];
 
-    // --- ゲーム状態 ---
-    let player = {
-        lv: 1, xp: 0, nextXp: 100,
-        hp: 100, maxHp: 100,
-        baseAtk: 5, baseDef: 0,
-        inventory: {}, // { 'gel': 10, 'stone': 2 ... }
-        equipment: { weapon: null, armor: null },
-        unlockedRecipes: [] // 本来は進行度で解放するが今回は全表示
+    /* --- ゲーム状態 --- */
+    let saveData = {
+        gold: 1000,
+        gems: 3000,
+        ownedChars: [1, 2], // IDリスト
+        party: [1, 2, null], // 3枠
+        stage: 1
     };
 
-    let currentZone = 0;
-    let currentEnemy = null; // { ...stats, maxHp }
-    let combatTimer = null;
-
-    // --- 初期化 ---
-    function init() {
-        // インベントリ初期化
-        for(let key in MATERIALS) player.inventory[key] = 0;
-        spawnEnemy();
-        updateUI();
-        
-        // 自動回復ループ
-        setInterval(() => {
-            if(player.hp < player.maxHp) {
-                player.hp = Math.min(player.maxHp, player.hp + Math.max(1, Math.floor(player.maxHp * 0.05)));
-                updateStatsUI();
-            }
-        }, 1000);
+    // セーブデータ読み込み
+    if(localStorage.getItem('gachaRPG_save')) {
+        saveData = JSON.parse(localStorage.getItem('gachaRPG_save'));
     }
 
-    // --- バトルシステム ---
-    function setZone(z) {
-        currentZone = z;
-        document.querySelectorAll('.zone-btn').forEach((b, i) => {
-            b.classList.toggle('active', i === z);
-        });
-        spawnEnemy();
-        log(`Zone ${z+1} に移動しました`);
-    }
-
-    function spawnEnemy() {
-        const zoneEnemies = ENEMIES.slice(currentZone * 2, currentZone * 2 + 2);
-        const template = zoneEnemies[Math.floor(Math.random() * zoneEnemies.length)];
-        
-        currentEnemy = { ...template, maxHp: template.hp };
-        updateBattleUI();
-    }
-
-    function playerAttack() {
-        if (!currentEnemy || currentEnemy.hp <= 0) return;
-
-        // ダメージ計算
-        const stats = getPlayerStats();
-        // クリティカル判定
-        const isCrit = Math.random() < 0.1;
-        let dmg = Math.floor(stats.atk * (0.9 + Math.random() * 0.2));
-        if(isCrit) dmg *= 2;
-
-        currentEnemy.hp -= dmg;
-        
-        // エフェクト
-        const emoji = document.getElementById('enemy-emoji');
-        emoji.style.transform = "scale(0.8) rotate(10deg)";
-        setTimeout(() => emoji.style.transform = "scale(1) rotate(0deg)", 100);
-
-        if (currentEnemy.hp <= 0) {
-            winBattle();
-        } else {
-            enemyAttack();
-        }
-        updateBattleUI();
-    }
-
-    function enemyAttack() {
-        const stats = getPlayerStats();
-        let dmg = Math.max(1, currentEnemy.atk - stats.def);
-        // ランダム幅
-        dmg = Math.floor(dmg * (0.9 + Math.random() * 0.2));
-        
-        player.hp = Math.max(0, player.hp - dmg);
-        if (player.hp <= 0) {
-            log(`あなたは倒れた... (HPが回復するまで待機)`);
-            player.hp = 0; // そのまま
-        }
-    }
-
-    function winBattle() {
-        const dropItem = MATERIALS[currentEnemy.drop];
-        const gotDrop = Math.random() < currentEnemy.rate;
-        
-        // XP獲得
-        player.xp += currentEnemy.xp;
-        let logMsg = `<b>${currentEnemy.name}</b>を倒した! XP+${currentEnemy.xp}`;
-        
-        // ドロップ獲得
-        if(gotDrop) {
-            player.inventory[currentEnemy.drop]++;
-            logMsg += ` <span class="log-loot">[${dropItem.name}]GET!</span>`;
-        }
-
-        log(logMsg);
-
-        // レベルアップ判定
-        if(player.xp >= player.nextXp) {
-            player.lv++;
-            player.xp -= player.nextXp;
-            player.nextXp = Math.floor(player.nextXp * 1.5);
-            player.maxHp += 20;
-            player.baseAtk += 2;
-            player.hp = player.maxHp;
-            log(`<span class="log-lvl">LEVEL UP! Lv.${player.lv}</span>`);
-        }
-
-        setTimeout(spawnEnemy, 500);
-        updateUI();
-    }
-
-    // --- クラフトシステム ---
-    function craft(recipeId) {
-        const recipe = RECIPES.find(r => r.id === recipeId);
-        
-        // 素材消費
-        for(let mat in recipe.req) {
-            player.inventory[mat] -= recipe.req[mat];
-        }
-
-        // 装備
-        if(recipe.type === 'weapon') player.equipment.weapon = recipe;
-        if(recipe.type === 'armor') player.equipment.armor = recipe;
-
-        log(`${recipe.name}を作成し、装備しました！`);
-        updateUI();
-    }
-
-    function canCraft(recipe) {
-        for(let mat in recipe.req) {
-            if(player.inventory[mat] < recipe.req[mat]) return false;
-        }
-        return true;
-    }
-
-    // --- ステータス計算 ---
-    function getPlayerStats() {
-        let atk = player.baseAtk;
-        let def = player.baseDef;
-
-        if(player.equipment.weapon) {
-            atk += player.equipment.weapon.atk;
-            def += player.equipment.weapon.def;
-        }
-        if(player.equipment.armor) {
-            atk += player.equipment.armor.atk;
-            def += player.equipment.armor.def;
-        }
-        return { atk, def };
-    }
-
-    // --- UI更新 ---
-    function log(msg) {
-        const div = document.getElementById('log');
-        div.innerHTML = `<div>${msg}</div>` + div.innerHTML;
-    }
-
-    function updateBattleUI() {
-        if(!currentEnemy) return;
-        document.getElementById('enemy-name').innerText = currentEnemy.name;
-        document.getElementById('enemy-emoji').innerText = currentEnemy.emoji;
-        
-        const hpPct = (currentEnemy.hp / currentEnemy.maxHp) * 100;
-        document.getElementById('enemy-hp-bar').style.width = Math.max(0, hpPct) + "%";
-        document.getElementById('enemy-hp-text').innerText = `HP: ${currentEnemy.hp}/${currentEnemy.maxHp}`;
-        
-        updateStatsUI();
-    }
-
-    function updateStatsUI() {
-        const stats = getPlayerStats();
-        document.getElementById('st-lv').innerText = player.lv;
-        document.getElementById('st-hp').innerText = `${player.hp}/${player.maxHp}`;
-        document.getElementById('st-atk').innerText = stats.atk;
-        document.getElementById('st-def').innerText = stats.def;
-
-        const xpPct = (player.xp / player.nextXp) * 100;
-        document.getElementById('xp-bar').style.width = xpPct + "%";
-        document.getElementById('xp-text').innerText = `LV.${player.lv} (${player.xp}/${player.nextXp})`;
-
-        if(player.equipment.weapon) {
-            const w = player.equipment.weapon;
-            document.getElementById('eq-weap').innerText = w.name;
-            document.getElementById('eq-weap').className = `rarity-${w.rarity}`;
-        }
-        if(player.equipment.armor) {
-            const a = player.equipment.armor;
-            document.getElementById('eq-armor').innerText = a.name;
-            document.getElementById('eq-armor').className = `rarity-${a.rarity}`;
-        }
-    }
-
-    function updateUI() {
-        updateStatsUI();
-        
-        // 素材リスト
-        const matDiv = document.getElementById('material-list');
-        matDiv.innerHTML = '';
-        for(let key in MATERIALS) {
-            const count = player.inventory[key];
-            if(count > 0 || true) { // 全て表示
-                const m = MATERIALS[key];
-                const el = document.createElement('div');
-                el.className = `rarity-${m.rarity}`;
-                el.innerText = `${m.name}: ${count}`;
-                if(count === 0) el.style.opacity = 0.3;
-                matDiv.appendChild(el);
-            }
-        }
-
-        // レシピリスト
-        const recDiv = document.getElementById('recipe-list');
-        recDiv.innerHTML = '';
-        RECIPES.forEach(r => {
-            const el = document.createElement('div');
-            el.className = 'item-row';
-            
-            let reqHtml = '';
-            for(let mat in r.req) {
-                const has = player.inventory[mat];
-                const need = r.req[mat];
-                const color = has >= need ? '#8f8' : '#f88';
-                reqHtml += `<span style="color:${color}">${MATERIALS[mat].name} ${has}/${need}</span> `;
-            }
-
-            const btnDisabled = !canCraft(r) ? 'disabled' : '';
-
-            el.innerHTML = `
-                <div class="item-info">
-                    <span class="item-name rarity-${r.rarity}">${r.name}</span>
-                    <span class="item-req">${reqHtml}</span>
-                    <span style="font-size:10px">ATK+${r.atk} DEF+${r.def}</span>
-                </div>
-                <button class="craft-btn" onclick="craft('${r.id}')" ${btnDisabled}>CRAFT</button>
-            `;
-            recDiv.appendChild(el);
-        });
-    }
-
-    // スタート
-    init();
-
-</script>
-</body>
-</html>
+    let battleState = {
+        active: false,
+        wave: 1,
+        maxWave: 3,
+        enemyHp: 100,
+        maxEnemyHp: 100,
+        partyStatus: [], // {id, hp, maxHp}
+        turn: 0,ー
