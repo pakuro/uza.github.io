@@ -2,272 +2,229 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Gacha Heroes: Mugen Battle</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Simple Gacha RPG (Fixed)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700&display=swap');
-
-        :root {
-            --bg-dark: #1a1a2e;
-            --bg-panel: #16213e;
-            --accent: #e94560;
-            --text-main: #fff;
-            --ssr-color: linear-gradient(135deg, #ff00cc, #3333ff, #00ccff, #ffcc00);
-        }
-
+        /* --- デザイン部分：シンプルかつ崩れにくい設計 --- */
         body {
-            margin: 0; padding: 0;
-            background: #0f0f1a; color: white;
-            font-family: 'M PLUS Rounded 1c', sans-serif;
-            overflow: hidden;
-            user-select: none;
-            display: flex; justify-content: center; height: 100vh;
+            background-color: #222;
+            color: white;
+            font-family: sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
         }
 
-        /* スマホ画面風コンテナ */
-        #app {
-            width: 100%; max-width: 450px; height: 100%;
-            background: var(--bg-dark);
-            position: relative;
-            display: flex; flex-direction: column;
-            border-left: 1px solid #333; border-right: 1px solid #333;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        /* ゲーム画面の枠 */
+        #game-box {
+            max-width: 400px;
+            margin: 0 auto;
+            background: #333;
+            padding: 20px;
+            border: 2px solid #555;
+            border-radius: 10px;
         }
 
-        /* --- 画面共通 --- */
-        .screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: none; flex-direction: column;
-            padding-bottom: 70px; /* フッター分 */
-            box-sizing: border-box;
-            background: var(--bg-dark);
-        }
-        .screen.active { display: flex; }
+        /* 画面の切り替え用 */
+        .screen { display: none; }
+        .active { display: block; }
 
-        /* ヘッダー */
-        .header {
-            padding: 10px 15px;
-            background: rgba(0,0,0,0.8);
-            border-bottom: 1px solid #444;
-            display: flex; justify-content: space-between; align-items: center;
-            z-index: 10;
+        /* ボタンのデザイン */
+        button {
+            background: #e6b422;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            touch-action: manipulation; /* スマホでのタップ遅延防止 */
         }
-        .currency { display: flex; gap: 15px; font-size: 14px; }
-        .res-box { background: #333; padding: 4px 10px; border-radius: 15px; display: flex; align-items: center; }
+        button:active { background: #c59b10; transform: translateY(2px); }
+        button.secondary { background: #666; color: #fff; font-size: 14px; }
 
-        /* フッターメニュー */
-        .footer {
-            position: absolute; bottom: 0; width: 100%; height: 60px;
-            background: #222; border-top: 1px solid #444;
-            display: flex; justify-content: space-around; align-items: center;
-            z-index: 20;
+        /* ステータス表示 */
+        .status-bar {
+            background: #000;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-around;
         }
-        .menu-btn {
-            background: none; border: none; color: #888;
-            font-size: 10px; display: flex; flex-direction: column; align-items: center;
-            cursor: pointer; width: 100%;
-        }
-        .menu-btn.active { color: #fff; text-shadow: 0 0 5px var(--accent); }
-        .menu-btn span { font-size: 20px; margin-bottom: 2px; }
 
-        /* --- ホーム画面 --- */
-        #home-screen { align-items: center; justify-content: center; background: radial-gradient(circle, #2a2a40, #000); }
-        .hero-banner { font-size: 120px; filter: drop-shadow(0 0 20px rgba(255,255,255,0.3)); animation: float 3s infinite ease-in-out; }
-        .quest-btn {
-            background: linear-gradient(45deg, #ff416c, #ff4b2b);
-            color: white; border: none; padding: 15px 50px; border-radius: 30px;
-            font-size: 24px; font-weight: bold; margin-top: 30px;
-            box-shadow: 0 5px 15px rgba(255, 75, 43, 0.4);
-            cursor: pointer; transition: transform 0.1s;
-        }
-        .quest-btn:active { transform: scale(0.95); }
-
-        /* --- ガチャ画面 --- */
-        #gacha-screen { padding: 20px; align-items: center; }
-        .gacha-machine { 
-            width: 200px; height: 200px; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%23444"/></svg>') no-repeat center;
-            background-size: contain; margin: 40px 0;
-            position: relative;
-        }
-        .gacha-btn {
-            background: linear-gradient(45deg, #11998e, #38ef7d);
-            width: 90%; padding: 15px; border-radius: 10px; border: none;
-            color: white; font-size: 18px; font-weight: bold; margin-bottom: 10px; cursor: pointer;
-        }
-        .gacha-result {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 50;
-            display: none; flex-wrap: wrap; justify-content: center; align-items: center; padding: 20px;
-        }
+        /* ガチャ結果など */
         .card {
-            width: 80px; height: 110px; margin: 5px; background: #333;
-            border-radius: 5px; border: 2px solid #555;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            position: relative; overflow: hidden; animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 1px solid #fff;
+            padding: 10px;
+            margin: 5px;
+            display: inline-block;
+            width: 80px;
+            background: #444;
         }
-        /* レア度演出 */
-        .card.R { border-color: #aaa; box-shadow: 0 0 5px #aaa; }
-        .card.SR { border-color: #ffd700; box-shadow: 0 0 10px #ffd700; background: radial-gradient(circle, #554400, #222); }
-        .card.SSR { 
-            border: 3px solid transparent; 
-            background: linear-gradient(#222, #222) padding-box, var(--ssr-color) border-box; 
-            box-shadow: 0 0 20px rgba(255, 0, 200, 0.5);
-        }
-        .card-icon { font-size: 40px; }
-        .card-name { font-size: 10px; margin-top: 5px; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; }
-        .new-badge { position: absolute; top: 0; right: 0; background: red; font-size: 8px; padding: 2px 4px; border-radius: 0 0 0 5px; }
+        .ssr { border: 2px solid gold; color: gold; background: #330000; }
 
-        /* --- 編成画面 --- */
-        #party-screen { padding: 10px; overflow-y: auto; }
-        .party-slot { display: flex; justify-content: space-around; padding: 20px 0; background: #222; border-radius: 10px; margin-bottom: 20px; }
-        .slot { width: 80px; height: 80px; background: #111; border: 2px dashed #444; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 30px; cursor: pointer; position: relative; }
-        .char-list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-        .char-item { background: #333; padding: 5px; border-radius: 5px; text-align: center; cursor: pointer; }
-        .char-item.selected { border: 2px solid #00ff00; }
-
-        /* --- バトル画面 --- */
-        #battle-screen { background: url('https://img.freepik.com/free-vector/dark-cave-landscape_1308-48767.jpg?w=740') no-repeat center center; background-size: cover; }
-        .battle-area { flex-grow: 1; position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
-        
-        /* 敵 */
-        .enemy-container { display: flex; justify-content: center; align-items: flex-end; height: 150px; position: relative; }
-        .enemy { font-size: 100px; filter: drop-shadow(0 0 10px red); transition: transform 0.1s; }
-        .enemy-hp { position: absolute; top: -20px; width: 200px; height: 10px; background: #333; border: 1px solid #fff; }
-        .hp-bar-fill { height: 100%; background: red; width: 100%; transition: width 0.2s; }
-        
-        /* 味方 */
-        .party-container { display: flex; justify-content: space-around; margin-bottom: 20px; }
-        .party-char { text-align: center; position: relative; transition: transform 0.1s; }
-        .party-char span { font-size: 50px; display: block; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); }
-        .char-hp { width: 50px; height: 5px; background: #333; margin: 0 auto; }
-        .char-hp-fill { height: 100%; background: #00ff00; width: 100%; }
-
-        /* コマンド */
-        .command-panel { height: 120px; background: rgba(0,0,0,0.8); padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .cmd-btn { background: #444; color: white; border: 1px solid #666; font-size: 16px; border-radius: 5px; cursor: pointer; }
-        .cmd-btn:active { background: #666; }
-        .cmd-atk { background: #800; border-color: #d00; }
-        .cmd-skill { background: #008; border-color: #44f; }
-
-        /* ダメージポップアップ */
-        .dmg-popup { position: absolute; color: white; font-size: 30px; font-weight: bold; text-shadow: 2px 2px 0 #000; pointer-events: none; animation: popUp 0.8s forwards; }
-        
-        /* アニメーション定義 */
-        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
-        @keyframes pop { 0% { transform: scale(0); } 80% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes popUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(1.5); opacity: 0; } }
-        @keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } 100% { transform: translateX(0); } }
-
+        /* エラー表示エリア */
+        #error-log { color: red; background: #fff; display: none; margin-top: 20px; padding: 10px; }
     </style>
 </head>
 <body>
 
-<div id="app">
-    <div class="header">
-        <div style="font-weight:bold;">⚔️ Gacha RPG</div>
-        <div class="currency">
-            <div class="res-box">💰 <span id="val-gold">0</span></div>
-            <div class="res-box">💎 <span id="val-gem">1000</span></div>
+    <div id="game-box">
+        <div class="status-bar">
+            <span>💎石: <b id="ui-gem">0</b></span>
+            <span>💰金: <b id="ui-gold">0</b></span>
         </div>
-    </div>
 
-    <div id="home-screen" class="screen active">
-        <div class="hero-banner">🏰</div>
-        <div style="text-align:center; margin-top:20px;">
-            <h2>冒険へ出発</h2>
-            <p>現在のステージ: <span id="stage-num">1-1</span></p>
+        <div id="screen-home" class="screen active">
+            <h1>🏰 ホーム</h1>
+            <p>最強のパーティを作ろう！</p>
+            <br>
+            <button onclick="gotoGacha()">💎 ガチャを引く</button><br>
+            <button onclick="gotoBattle()">⚔️ バトルへ行く</button>
         </div>
-        <button class="quest-btn" onclick="startBattle()">BATTLE START</button>
-    </div>
 
-    <div id="gacha-screen" class="screen">
-        <h2>英雄召喚</h2>
-        <div class="gacha-machine">
-            <div style="font-size:100px; text-align:center; line-height:200px;">🔮</div>
+        <div id="screen-gacha" class="screen">
+            <h1>🔮 召喚の館</h1>
+            <p>1回 💎300個</p>
+            <div id="gacha-display" style="min-height: 100px; margin-bottom:10px;">
+                (ここに結果が出ます)
+            </div>
+            <button onclick="pullGacha()">10連召喚する</button><br>
+            <button class="secondary" onclick="gotoHome()">戻る</button>
         </div>
-        <button class="gacha-btn" onclick="pullGacha(1)">単発召喚 (💎300)</button>
-        <button class="gacha-btn" onclick="pullGacha(10)">10連召喚 (💎3000)</button>
-        <div id="gacha-result" class="gacha-result" onclick="this.style.display='none'"></div>
+
+        <div id="screen-battle" class="screen">
+            <h1>🐲 バトル</h1>
+            <div style="font-size: 60px; margin: 20px;" id="enemy-icon">👿</div>
+            <p>敵のHP: <b id="enemy-hp">100</b></p>
+            <hr>
+            <p>味方の攻撃力: <b id="party-power">0</b></p>
+            <button onclick="attack()">👊 攻撃する</button><br>
+            <button class="secondary" onclick="gotoHome()">逃げる</button>
+        </div>
+
+        <div id="screen-result" class="screen">
+            <h1 style="color:gold">VICTORY!</h1>
+            <p>報酬: 💎300 GET!</p>
+            <button onclick="gotoHome()">ホームへ</button>
+        </div>
+
     </div>
 
-    <div id="party-screen" class="screen">
-        <h2>パーティ編成</h2>
-        <div class="party-slot" id="party-editor">
-            </div>
-        <h3>所持キャラクター</h3>
-        <div class="char-list" id="inventory-list">
-            </div>
-    </div>
+    <div id="error-log"></div>
 
-    <div id="battle-screen" class="screen">
-        <div class="battle-area">
-            <div style="color:white; text-align:center; background:rgba(0,0,0,0.5); padding:5px;">
-                WAVE <span id="battle-wave">1/3</span>
-            </div>
+    <script>
+        // --- エラー監視機能 ---
+        window.onerror = function(msg, url, line) {
+            const log = document.getElementById("error-log");
+            log.style.display = "block";
+            log.innerText = "エラー発生: " + msg + " (行: " + line + ")";
+            alert("プログラムにエラーがあります。\n" + msg);
+        };
+
+        // --- ゲームデータ ---
+        let gems = 3000;
+        let gold = 0;
+        let power = 10; // 初期攻撃力
+
+        // --- 起動時の処理 ---
+        // 画面が読み込まれてからUIを更新する安全策
+        window.onload = function() {
+            try {
+                updateUI();
+                console.log("ゲーム起動成功");
+            } catch (e) {
+                console.error(e);
+                alert("起動に失敗しました");
+            }
+        };
+
+        // --- 画面切り替え ---
+        function showScreen(screenId) {
+            // 全ての画面を隠す
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            // 指定した画面だけ出す
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function gotoHome() { showScreen('screen-home'); }
+        function gotoGacha() { 
+            document.getElementById('gacha-display').innerText = "ガチャを回して戦力を上げよう！";
+            showScreen('screen-gacha'); 
+        }
+        function gotoBattle() {
+            // 敵のHPをセット
+            document.getElementById('enemy-hp').innerText = "500";
+            document.getElementById('enemy-icon').innerText = "👿";
+            showScreen('screen-battle');
+        }
+
+        // --- UI更新 ---
+        function updateUI() {
+            document.getElementById('ui-gem').innerText = gems;
+            document.getElementById('ui-gold').innerText = gold;
+            document.getElementById('party-power').innerText = power;
+        }
+
+        // --- ガチャ機能 ---
+        function pullGacha() {
+            if (gems < 3000) {
+                alert("石が足りません！バトルで稼いでください。");
+                return;
+            }
+            gems -= 3000;
+
+            const resultsDiv = document.getElementById('gacha-display');
+            resultsDiv.innerHTML = ""; // クリア
+
+            // 10回まわす
+            for(let i=0; i<10; i++) {
+                let r = Math.random();
+                let card = document.createElement("div");
+                card.className = "card";
+                
+                if (r < 0.1) { // 10%でSSR
+                    card.innerText = "SSR 魔王";
+                    card.classList.add("ssr");
+                    power += 100; // 攻撃力アップ
+                } else if (r < 0.4) {
+                    card.innerText = "SR 騎士";
+                    power += 30;
+                } else {
+                    card.innerText = "N 村人";
+                    power += 5;
+                }
+                resultsDiv.appendChild(card);
+            }
+            updateUI();
+        }
+
+        // --- バトル機能 ---
+        function attack() {
+            let ehp = parseInt(document.getElementById('enemy-hp').innerText);
             
-            <div class="enemy-container">
-                <div class="enemy-hp"><div class="hp-bar-fill" id="enemy-hp-bar"></div></div>
-                <div class="enemy" id="enemy-sprite">🐲</div>
-            </div>
+            // 攻撃！
+            ehp -= power;
+            
+            // 演出（少し揺らす）
+            const icon = document.getElementById('enemy-icon');
+            icon.style.transform = "translateX(5px)";
+            setTimeout(() => icon.style.transform = "translateX(0)", 100);
 
-            <div class="party-container" id="battle-party">
-                </div>
-        </div>
-        <div class="command-panel" id="cmd-panel">
-            <button class="cmd-btn cmd-atk" onclick="playerAction('attack')">攻撃</button>
-            <button class="cmd-btn cmd-skill" onclick="playerAction('skill')">スキル</button>
-            <button class="cmd-btn" onclick="toggleAuto()">AUTO: <span id="auto-state">OFF</span></button>
-            <button class="cmd-btn" onclick="surrender()">撤退</button>
-        </div>
-        <div id="battle-result" class="gacha-result" style="flex-direction:column; background:rgba(0,0,0,0.85);">
-            <h1 id="result-title" style="font-size:40px; color:#ffdd00;">VICTORY</h1>
-            <p id="result-loot" style="font-size:20px;">獲得: 💰100 💎50</p>
-            <button class="quest-btn" onclick="endBattle()">OK</button>
-        </div>
-    </div>
+            if (ehp <= 0) {
+                document.getElementById('enemy-hp').innerText = "0";
+                // 勝利
+                gems += 3000; // 報酬
+                updateUI();
+                showScreen('screen-result');
+            } else {
+                document.getElementById('enemy-hp').innerText = ehp;
+            }
+        }
 
-    <div class="footer">
-        <button class="menu-btn active" onclick="showScreen('home-screen', this)"><span>🏠</span>ホーム</button>
-        <button class="menu-btn" onclick="showScreen('party-screen', this); renderPartyScreen();"><span>🛡️</span>編成</button>
-        <button class="menu-btn" onclick="showScreen('gacha-screen', this)"><span>💎</span>ガチャ</button>
-    </div>
-</div>
-
-<script>
-    /* --- データ定義 --- */
-    const CHAR_DB = [
-        { id: 1, name: "戦士", rarity: "N", icon: "⚔️", hp: 100, atk: 10 },
-        { id: 2, name: "弓兵", rarity: "N", icon: "🏹", hp: 80, atk: 12 },
-        { id: 3, name: "魔法使い", rarity: "R", icon: "🧙‍♀️", hp: 70, atk: 20 },
-        { id: 4, name: "僧侶", rarity: "R", icon: "✝️", hp: 90, atk: 5 },
-        { id: 5, name: "聖騎士", rarity: "SR", icon: "🛡️", hp: 200, atk: 15 },
-        { id: 6, name: "暗黒騎士", rarity: "SR", icon: "🦇", hp: 150, atk: 30 },
-        { id: 7, name: "竜の戦士", rarity: "SSR", icon: "🐉", hp: 300, atk: 50 },
-        { id: 8, name: "大天使", rarity: "SSR", icon: "👼", hp: 250, atk: 60 },
-        { id: 9, name: "魔王", rarity: "SSR", icon: "😈", hp: 400, atk: 80 }
-    ];
-
-    const ENEMY_DB = ["🐺", "🦇", "🐍", "🕷️", "🐗", "👻", "👹", "🐲"];
-
-    /* --- ゲーム状態 --- */
-    let saveData = {
-        gold: 1000,
-        gems: 3000,
-        ownedChars: [1, 2], // IDリスト
-        party: [1, 2, null], // 3枠
-        stage: 1
-    };
-
-    // セーブデータ読み込み
-    if(localStorage.getItem('gachaRPG_save')) {
-        saveData = JSON.parse(localStorage.getItem('gachaRPG_save'));
-    }
-
-    let battleState = {
-        active: false,
-        wave: 1,
-        maxWave: 3,
-        enemyHp: 100,
-        maxEnemyHp: 100,
-        partyStatus: [], // {id, hp, maxHp}
-        turn: 0,ー
+    </script>
+</body>
+</html>
