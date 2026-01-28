@@ -1,125 +1,115 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>Commit Heroes</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Phaser 3 CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
-  <style>
-    body { margin: 0; background: #111; }
-    canvas { display: block; margin: auto; }
-  </style>
+<meta charset="UTF-8">
+<title>Auto Runner</title>
+<style>
+  body { margin: 0; background: #111; }
+  canvas { display: block; margin: auto; background: #222; }
+</style>
 </head>
 <body>
 
+<canvas id="game" width="800" height="400"></canvas>
+
 <script>
-/*
-Core Game Formula (Pro Level)
-Game Loop = Battle → Reward → Growth → Repeat
-*/
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-// =====================
-// Game Data
-// =====================
-const playerData = {
-  level: 1,
-  atk: 5,
-  gold: 0
+// プレイヤー
+let player = {
+  x: 100,
+  y: 300,
+  w: 30,
+  h: 30,
+  vy: 0,
+  jump: false
 };
 
-let enemyData = {
-  hp: 20,
-  maxHp: 20
-};
+// 重力
+const gravity = 0.8;
 
-// =====================
-// Phaser Config
-// =====================
-const config = {
-  type: Phaser.AUTO,
-  width: 360,
-  height: 640,
-  backgroundColor: "#222",
-  scene: {
-    create,
-    update
+// 障害物
+let obstacles = [];
+let speed = 4;
+let score = 0;
+
+// ジャンプ
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && !player.jump) {
+    player.vy = -14;
+    player.jump = true;
   }
-};
+});
+canvas.addEventListener("click", () => {
+  if (!player.jump) {
+    player.vy = -14;
+    player.jump = true;
+  }
+});
 
-const game = new Phaser.Game(config);
-
-// =====================
-// Scene
-// =====================
-let enemyText, playerText, infoText;
-
-function create () {
-  // Player Info
-  playerText = this.add.text(20, 20, "", {
-    fontSize: "16px",
-    fill: "#0f0"
+// 障害物生成
+function spawnObstacle() {
+  obstacles.push({
+    x: canvas.width,
+    y: 320,
+    w: 30,
+    h: 40
   });
-
-  // Enemy Info
-  enemyText = this.add.text(20, 80, "", {
-    fontSize: "16px",
-    fill: "#f00"
-  });
-
-  // Info
-  infoText = this.add.text(20, 500, "TAP TO ATTACK", {
-    fontSize: "20px",
-    fill: "#fff"
-  });
-
-  // Input
-  this.input.on("pointerdown", () => {
-    attackEnemy();
-  });
-
-  updateUI();
 }
+setInterval(spawnObstacle, 1200);
 
-function update () {
-  // 今回は常時更新処理なし（放置対応しやすい設計）
-}
+// 更新
+function update() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-// =====================
-// Game Logic
-// =====================
-function attackEnemy() {
-  enemyData.hp -= playerData.atk;
+  // プレイヤー
+  player.vy += gravity;
+  player.y += player.vy;
 
-  if (enemyData.hp <= 0) {
-    winBattle();
+  if (player.y >= 300) {
+    player.y = 300;
+    player.vy = 0;
+    player.jump = false;
   }
 
-  updateUI();
+  ctx.fillStyle = "cyan";
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  // 障害物
+  ctx.fillStyle = "red";
+  obstacles.forEach((o, i) => {
+    o.x -= speed;
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+
+    // 当たり判定
+    if (
+      player.x < o.x + o.w &&
+      player.x + player.w > o.x &&
+      player.y < o.y + o.h &&
+      player.y + player.h > o.y
+    ) {
+      alert("GAME OVER\nScore: " + score);
+      location.reload();
+    }
+
+    if (o.x + o.w < 0) obstacles.splice(i, 1);
+  });
+
+  // 地面
+  ctx.fillStyle = "#555";
+  ctx.fillRect(0, 340, canvas.width, 60);
+
+  // スコア
+  score++;
+  ctx.fillStyle = "white";
+  ctx.font = "20px sans-serif";
+  ctx.fillText("Score: " + score, 10, 30);
+
+  requestAnimationFrame(update);
 }
 
-function winBattle() {
-  // Reward
-  playerData.gold += 10;
-  playerData.level += 1;
-  playerData.atk += 1;
-
-  // Next Enemy (Scaling)
-  enemyData.maxHp += 10;
-  enemyData.hp = enemyData.maxHp;
-
-  infoText.setText("ENEMY DEFEATED! +10 GOLD");
-}
-
-function updateUI() {
-  playerText.setText(
-    `PLAYER\nLV: ${playerData.level}\nATK: ${playerData.atk}\nGOLD: ${playerData.gold}`
-  );
-
-  enemyText.setText(
-    `ENEMY\nHP: ${enemyData.hp} / ${enemyData.maxHp}`
-  );
-}
+update();
 </script>
 
 </body>
