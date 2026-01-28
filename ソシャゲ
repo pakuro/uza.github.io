@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Commit Heroes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Phaser 3 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+  <style>
+    body { margin: 0; background: #111; }
+    canvas { display: block; margin: auto; }
+  </style>
+</head>
+<body>
+
+<script>
+/*
+Core Game Formula (Pro Level)
+Game Loop = Battle → Reward → Growth → Repeat
+*/
+
+// =====================
+// Game Data
+// =====================
+const playerData = {
+  level: 1,
+  atk: 5,
+  gold: 0
+};
+
+let enemyData = {
+  hp: 20,
+  maxHp: 20
+};
+
+// =====================
+// Phaser Config
+// =====================
+const config = {
+  type: Phaser.AUTO,
+  width: 360,
+  height: 640,
+  backgroundColor: "#222",
+  scene: {
+    create,
+    update
+  }
+};
+
+const game = new Phaser.Game(config);
+
+// =====================
+// Scene
+// =====================
+let enemyText, playerText, infoText;
+
+function create () {
+  // Player Info
+  playerText = this.add.text(20, 20, "", {
+    fontSize: "16px",
+    fill: "#0f0"
+  });
+
+  // Enemy Info
+  enemyText = this.add.text(20, 80, "", {
+    fontSize: "16px",
+    fill: "#f00"
+  });
+
+  // Info
+  infoText = this.add.text(20, 500, "TAP TO ATTACK", {
+    fontSize: "20px",
+    fill: "#fff"
+  });
+
+  // Input
+  this.input.on("pointerdown", () => {
+    attackEnemy();
+  });
+
+  updateUI();
+}
+
+function update () {
+  // 今回は常時更新処理なし（放置対応しやすい設計）
+}
+
+// =====================
+// Game Logic
+// =====================
+function attackEnemy() {
+  enemyData.hp -= playerData.atk;
+
+  if (enemyData.hp <= 0) {
+    winBattle();
+  }
+
+  updateUI();
+}
+
+function winBattle() {
+  // Reward
+  playerData.gold += 10;
+  playerData.level += 1;
+  playerData.atk += 1;
+
+  // Next Enemy (Scaling)
+  enemyData.maxHp += 10;
+  enemyData.hp = enemyData.maxHp;
+
+  infoText.setText("ENEMY DEFEATED! +10 GOLD");
+}
+
+function updateUI() {
+  playerText.setText(
+    `PLAYER\nLV: ${playerData.level}\nATK: ${playerData.atk}\nGOLD: ${playerData.gold}`
+  );
+
+  enemyText.setText(
+    `ENEMY\nHP: ${enemyData.hp} / ${enemyData.maxHp}`
+  );
+}
+</script>
+
+</body>
+</html>
