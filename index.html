@@ -1,334 +1,126 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>3D Hill Racer Fixed</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <style>
-        body {
-            margin: 0; background: #000; overflow: hidden;
-            font-family: sans-serif;
-            touch-action: none; user-select: none; -webkit-user-select: none;
-        }
-        #game-container { position: relative; width: 100vw; height: 100vh; background: #87CEEB; }
-        canvas { display: block; width: 100%; height: 100%; }
-
-        #hud {
-            position: absolute; top: 10px; left: 10px;
-            color: white; font-size: 20px; font-weight: bold;
-            text-shadow: 2px 2px 0 #000; pointer-events: none;
-        }
-        #crash-msg {
-            position: absolute; top: 40%; width: 100%; text-align: center;
-            color: red; font-size: 40px; font-weight: bold;
-            text-shadow: 2px 2px 0 #000, -2px -2px 0 #000;
-            display: none; pointer-events: none;
-        }
-
-        /* コントローラー */
-        #controls {
-            position: absolute; bottom: 0; width: 100%; height: 180px;
-            display: flex; justify-content: space-between; padding: 20px;
-            box-sizing: border-box; pointer-events: none;
-        }
-        .btn {
-            pointer-events: auto;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-            backdrop-filter: blur(5px);
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-size: 24px; font-weight: bold;
-            transition: transform 0.1s, background 0.1s;
-        }
-        .btn:active, .btn.pressed { background: rgba(255, 255, 255, 0.5); transform: scale(0.95); }
-        .d-pad { display: flex; gap: 10px; align-items: flex-end; }
-        .btn-arrow { width: 70px; height: 70px; font-size: 30px; }
-        .action-pad { display: flex; gap: 20px; align-items: flex-end; }
-        .btn-action { width: 80px; height: 80px; font-size: 16px; border-radius: 20px;}
-        .accel { background: rgba(50, 200, 50, 0.4); border-color: #4caf50; }
-        .brake { background: rgba(200, 50, 50, 0.4); border-color: #f44336; width: 60px; height: 60px; font-size: 12px; margin-bottom: 10px;}
-    </style>
+  <meta charset="UTF-8" />
+  <title>Commit Heroes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Phaser 3 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+  <style>
+    body { margin: 0; background: #111; }
+    canvas { display: block; margin: auto; }
+  </style>
 </head>
 <body>
 
-<div id="game-container">
-    <canvas id="canvas"></canvas>
-    
-    <div id="hud">
-        SPEED: <span id="speed-disp">0</span> km/h<br>
-        DIST: <span id="dist-disp">0</span> m
-    </div>
-    <div id="crash-msg">CRASH!</div>
-
-    <div id="controls">
-        <div class="d-pad">
-            <div class="btn btn-arrow" id="btn-left" data-key="left">◀</div>
-            <div class="btn btn-arrow" id="btn-right" data-key="right">▶</div>
-        </div>
-        <div class="action-pad">
-            <div class="btn btn-action brake" id="btn-brake" data-key="brake">STOP</div>
-            <div class="btn btn-action accel" id="btn-gas" data-key="gas">GO</div>
-        </div>
-    </div>
-</div>
-
 <script>
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+/*
+Core Game Formula (Pro Level)
+Game Loop = Battle → Reward → Growth → Repeat
+*/
 
-let width, height;
-function resize() {
-    width = canvas.width = window.innerWidth;
-    height = canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resize);
-resize();
-
-// --- ゲーム設定 ---
-const SEGMENT_LENGTH = 200;
-const DRAW_DISTANCE = 300;
-const ROAD_WIDTH = 2000;
-const CAMERA_HEIGHT = 1000;
-const CAMERA_DEPTH = 1 / Math.tan((60 * Math.PI / 180) / 2);
-const MAX_SPEED = SEGMENT_LENGTH * 60; 
-const ACCEL = MAX_SPEED / 5;
-const BREAKING = -MAX_SPEED;
-const DECEL = -MAX_SPEED / 5;
-const OFF_ROAD_DECEL = -MAX_SPEED / 2;
-const OFF_ROAD_LIMIT = MAX_SPEED / 4;
-const TOTAL_SEGMENTS = 2000;
-const TRACK_LENGTH = TOTAL_SEGMENTS * SEGMENT_LENGTH;
-
-// --- 状態変数 ---
-let position = 0;
-let playerX = 0;
-let speed = 0;
-let segments = [];
-let cars = []; 
-let crashTimer = 0;
-
-// 入力管理（ここを修正しました）
-const keys = {
-    left: false,
-    right: false,
-    gas: false,
-    brake: false
+// =====================
+// Game Data
+// =====================
+const playerData = {
+  level: 1,
+  atk: 5,
+  gold: 0
 };
 
-// --- コース生成 ---
-function createRoad() {
-    segments = [];
-    for (let i = 0; i < TOTAL_SEGMENTS; i++) {
-        let curve = 0; let y = 0;
-        if (i > 300 && i < 700) y = Math.sin((i - 300) / 400 * Math.PI) * 1500;
-        else if (i > 800 && i < 1500) {
-            y = Math.sin((i - 800) / 100 * Math.PI) * 1000;
-            curve = Math.cos(i / 100) * 2;
-        } else if (i > 1700) y = -2000 + (i - 1700) * 10;
+let enemyData = {
+  hp: 20,
+  maxHp: 20
+};
 
-        segments.push({
-            index: i,
-            p1: { world: { x: 0, y: y * 3, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
-            p2: { world: { x: 0, y: y * 3, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
-            curve: curve,
-            color: Math.floor(i / 3) % 2 ? { road: '#666', grass: '#1a8c1a', border: '#fff' } : { road: '#636363', grass: '#137513', border: '#c00' }
-        });
-    }
+// =====================
+// Phaser Config
+// =====================
+const config = {
+  type: Phaser.AUTO,
+  width: 360,
+  height: 640,
+  backgroundColor: "#222",
+  scene: {
+    create,
+    update
+  }
+};
+
+const game = new Phaser.Game(config);
+
+// =====================
+// Scene
+// =====================
+let enemyText, playerText, infoText;
+
+function create () {
+  // Player Info
+  playerText = this.add.text(20, 20, "", {
+    fontSize: "16px",
+    fill: "#0f0"
+  });
+
+  // Enemy Info
+  enemyText = this.add.text(20, 80, "", {
+    fontSize: "16px",
+    fill: "#f00"
+  });
+
+  // Info
+  infoText = this.add.text(20, 500, "TAP TO ATTACK", {
+    fontSize: "20px",
+    fill: "#fff"
+  });
+
+  // Input
+  this.input.on("pointerdown", () => {
+    attackEnemy();
+  });
+
+  updateUI();
 }
 
-// --- 敵車生成 ---
-function resetCars() {
-    cars = [];
-    const carColors = ['#0000ff', '#00ff00', '#ffff00', '#00ffff'];
-    for (let i = 0; i < 20; i++) { 
-        const z = Math.random() * TRACK_LENGTH;
-        if (z < 5000) continue; 
-        
-        cars.push({
-            z: z,
-            x: (Math.random() * 1.6) - 0.8,
-            speed: (MAX_SPEED * 0.6) + Math.random() * (MAX_SPEED * 0.3),
-            color: carColors[i % carColors.length]
-        });
-    }
+function update () {
+  // 今回は常時更新処理なし（放置対応しやすい設計）
 }
 
-function project(p, cameraX, cameraY, cameraZ, cameraDepth) {
-    p.camera.x = (p.world.x || 0) - cameraX;
-    p.camera.y = (p.world.y || 0) - cameraY;
-    p.camera.z = (p.world.z || 0) - cameraZ;
-    p.screen.scale = cameraDepth / p.camera.z;
-    p.screen.x = Math.round((width / 2) + (p.screen.scale * p.camera.x * width / 2));
-    p.screen.y = Math.round((height / 2) - (p.screen.scale * p.camera.y * height / 2));
-    p.screen.w = Math.round((p.screen.scale * ROAD_WIDTH * width / 2));
+// =====================
+// Game Logic
+// =====================
+function attackEnemy() {
+  enemyData.hp -= playerData.atk;
+
+  if (enemyData.hp <= 0) {
+    winBattle();
+  }
+
+  updateUI();
 }
 
-function renderPolygon(x1, y1, w1, x2, y2, w2, color) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(x1 - w1, y1); ctx.lineTo(x2 - w2, y2);
-    ctx.lineTo(x2 + w2, y2); ctx.lineTo(x1 + w1, y1);
-    ctx.fill();
+function winBattle() {
+  // Reward
+  playerData.gold += 10;
+  playerData.level += 1;
+  playerData.atk += 1;
+
+  // Next Enemy (Scaling)
+  enemyData.maxHp += 10;
+  enemyData.hp = enemyData.maxHp;
+
+  infoText.setText("ENEMY DEFEATED! +10 GOLD");
 }
 
-function drawCar(x, y, w, h, color) {
-    ctx.fillStyle = color;
-    ctx.fillRect(x - w/2, y - h, w, h);
-    
-    ctx.fillStyle = '#111';
-    ctx.fillRect(x - w/2 - w*0.1, y - h/2, w*0.2, h/2); 
-    ctx.fillRect(x + w/2 - w*0.1, y - h/2, w*0.2, h/2); 
+function updateUI() {
+  playerText.setText(
+    `PLAYER\nLV: ${playerData.level}\nATK: ${playerData.atk}\nGOLD: ${playerData.gold}`
+  );
 
-    if (color === '#d32f2f') {
-        ctx.fillStyle = (keys.gas) ? '#ff8f00' : ((keys.brake) ? '#ff0000' : '#ffeb3b');
-        ctx.fillRect(x - w/2 + w*0.1, y - h*0.3, w*0.2, h*0.1);
-        ctx.fillRect(x + w/2 - w*0.3, y - h*0.3, w*0.2, h*0.1);
-    }
+  enemyText.setText(
+    `ENEMY\nHP: ${enemyData.hp} / ${enemyData.maxHp}`
+  );
 }
-
-// --- ゲームループ ---
-function update(dt) {
-    position += speed * dt;
-    while (position >= TRACK_LENGTH) position -= TRACK_LENGTH;
-    while (position < 0) position += TRACK_LENGTH;
-
-    // キー入力の判定
-    if (keys.left) playerX -= 0.003 * (speed / MAX_SPEED) * 2000;
-    if (keys.right) playerX += 0.003 * (speed / MAX_SPEED) * 2000;
-    playerX = Math.max(-2, Math.min(2, playerX));
-
-    if (keys.gas) speed += ACCEL * dt;
-    else if (keys.brake) speed += BREAKING * dt;
-    else speed += DECEL * dt;
-
-    if (((playerX < -1) || (playerX > 1)) && (speed > OFF_ROAD_LIMIT)) {
-        speed += OFF_ROAD_DECEL * dt;
-    }
-    speed = Math.max(0, Math.min(MAX_SPEED, speed));
-
-    for(let car of cars) {
-        car.z += car.speed * dt;
-        if(car.z >= TRACK_LENGTH) car.z -= TRACK_LENGTH;
-        
-        let zDist = Math.abs(car.z - position);
-        if (zDist > TRACK_LENGTH / 2) zDist = TRACK_LENGTH - zDist;
-
-        if (zDist < 300 && Math.abs(car.x - playerX) < 0.3) {
-            speed = Math.min(speed, car.speed * 0.5); 
-            crashTimer = 30; 
-        }
-    }
-
-    document.getElementById('speed-disp').innerText = Math.floor(speed / 100);
-    document.getElementById('dist-disp').innerText = Math.floor(position / 100);
-    
-    const crashMsg = document.getElementById('crash-msg');
-    if(crashTimer > 0) {
-        crashMsg.style.display = 'block';
-        crashTimer--;
-    } else {
-        crashMsg.style.display = 'none';
-    }
-}
-
-function render() {
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#228B22'; ctx.fillRect(0, height/2, width, height/2);
-
-    let startPos = Math.floor(position / SEGMENT_LENGTH);
-    let cameraH = CAMERA_HEIGHT + segments[startPos % segments.length].p1.world.y;
-    let maxy = height;
-    let x = 0; let dx = 0;
-
-    for (let n = startPos; n < startPos + DRAW_DISTANCE; n++) {
-        let segment = segments[n % segments.length];
-        let looped = n >= segments.length;
-        let cameraZ = position - (looped ? TRACK_LENGTH : 0);
-        x += dx; dx += segment.curve;
-
-        project(segment.p1, (playerX * ROAD_WIDTH) - x, cameraH, cameraZ, CAMERA_DEPTH);
-        project(segment.p2, (playerX * ROAD_WIDTH) - x - dx, cameraH, cameraZ, CAMERA_DEPTH);
-
-        if (segment.p1.screen.y >= maxy || segment.p2.screen.y >= segment.p1.screen.y) continue;
-        maxy = segment.p2.screen.y;
-
-        renderPolygon(0, segment.p1.screen.y, width, 0, segment.p2.screen.y, width, segment.color.grass);
-        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w, segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.color.road);
-        
-        let r1 = segment.p1.screen.w / 6; let r2 = segment.p2.screen.w / 6;
-        let l1 = segment.p1.screen.w * 1.2; let l2 = segment.p2.screen.w * 1.2;
-        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, r1, segment.p2.screen.x, segment.p2.screen.y, r2, segment.color.border);
-        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, l1, segment.p2.screen.x, segment.p2.screen.y, l2, segment.color.border);
-        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w, segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.color.road);
-
-        for (let car of cars) {
-            let carZ = car.z;
-            if (looped && carZ < position) carZ += TRACK_LENGTH;
-            if (!looped && carZ > position + DRAW_DISTANCE * SEGMENT_LENGTH) carZ -= TRACK_LENGTH;
-            
-            if (carZ >= segment.p1.world.z && carZ < segment.p2.world.z) {
-                let carP = { world: { x: car.x * ROAD_WIDTH, y: segment.p1.world.y, z: carZ }, camera: {}, screen: {} };
-                project(carP, (playerX * ROAD_WIDTH) - x, cameraH, cameraZ, CAMERA_DEPTH);
-
-                if(carP.screen.y > maxy) continue; 
-                let carScale = carP.screen.scale * width;
-                drawCar(carP.screen.x, carP.screen.y, carScale * 2, carScale * 1.5, car.color);
-            }
-        }
-    }
-
-    const carW = width * 0.15; const carH = width * 0.08;
-    drawCar(width / 2, height - 20, carW, carH, '#d32f2f');
-}
-
-let lastTime = new Date().getTime();
-function frame() {
-    let now = new Date().getTime();
-    let dt = Math.min(1, (now - lastTime) / 1000);
-    lastTime = now;
-    update(dt);
-    render();
-    requestAnimationFrame(frame);
-}
-
-// --- 入力イベント設定（修正済） ---
-// キーボード入力も念の為追加
-window.addEventListener('keydown', e => {
-    if(e.key === 'ArrowUp') keys.gas = true;
-    if(e.key === 'ArrowDown') keys.brake = true;
-    if(e.key === 'ArrowLeft') keys.left = true;
-    if(e.key === 'ArrowRight') keys.right = true;
-});
-window.addEventListener('keyup', e => {
-    if(e.key === 'ArrowUp') keys.gas = false;
-    if(e.key === 'ArrowDown') keys.brake = false;
-    if(e.key === 'ArrowLeft') keys.left = false;
-    if(e.key === 'ArrowRight') keys.right = false;
-});
-
-// タッチボタン入力
-function bindButton(id, keyName) {
-    const btn = document.getElementById(id);
-    const start = (e) => { e.preventDefault(); keys[keyName] = true; btn.classList.add('pressed'); };
-    const end = (e) => { e.preventDefault(); keys[keyName] = false; btn.classList.remove('pressed'); };
-    
-    btn.addEventListener('mousedown', start);
-    btn.addEventListener('mouseup', end);
-    btn.addEventListener('mouseleave', end);
-    btn.addEventListener('touchstart', start);
-    btn.addEventListener('touchend', end);
-}
-
-bindButton('btn-gas', 'gas');
-bindButton('btn-brake', 'brake');
-bindButton('btn-left', 'left');
-bindButton('btn-right', 'right');
-
-createRoad();
-resetCars();
-frame();
 </script>
+
 </body>
 </html>
