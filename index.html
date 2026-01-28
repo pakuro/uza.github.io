@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>3D Hill Racer</title>
+    <title>3D Hill Racer v2 (with Rivals)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
         body {
@@ -11,26 +11,28 @@
             touch-action: none; user-select: none; -webkit-user-select: none;
         }
         #game-container { position: relative; width: 100vw; height: 100vh; background: #87CEEB; }
-        
-        /* キャンバス（ゲーム画面） */
         canvas { display: block; width: 100%; height: 100%; }
 
-        /* UI（スピードメーターなど） */
         #hud {
             position: absolute; top: 10px; left: 10px;
             color: white; font-size: 20px; font-weight: bold;
             text-shadow: 2px 2px 0 #000; pointer-events: none;
         }
+        #crash-msg {
+            position: absolute; top: 40%; width: 100%; text-align: center;
+            color: red; font-size: 40px; font-weight: bold;
+            text-shadow: 2px 2px 0 #000, -2px -2px 0 #000;
+            display: none; pointer-events: none;
+        }
 
-        /* コントローラー配置 */
+        /* コントローラー */
         #controls {
             position: absolute; bottom: 0; width: 100%; height: 180px;
             display: flex; justify-content: space-between; padding: 20px;
-            box-sizing: border-box; pointer-events: none; /* エリア自体はクリック透過 */
+            box-sizing: border-box; pointer-events: none;
         }
-
         .btn {
-            pointer-events: auto; /* ボタンはクリック可能 */
+            pointer-events: auto;
             background: rgba(255, 255, 255, 0.2);
             border: 2px solid rgba(255, 255, 255, 0.5);
             border-radius: 50%;
@@ -40,17 +42,12 @@
             transition: transform 0.1s, background 0.1s;
         }
         .btn:active, .btn.pressed { background: rgba(255, 255, 255, 0.5); transform: scale(0.95); }
-
-        /* 左側：ハンドル */
         .d-pad { display: flex; gap: 10px; align-items: flex-end; }
         .btn-arrow { width: 70px; height: 70px; font-size: 30px; }
-
-        /* 右側：アクセル・ブレーキ */
         .action-pad { display: flex; gap: 20px; align-items: flex-end; }
         .btn-action { width: 80px; height: 80px; font-size: 16px; border-radius: 20px;}
         .accel { background: rgba(50, 200, 50, 0.4); border-color: #4caf50; }
         .brake { background: rgba(200, 50, 50, 0.4); border-color: #f44336; width: 60px; height: 60px; font-size: 12px; margin-bottom: 10px;}
-
     </style>
 </head>
 <body>
@@ -62,6 +59,7 @@
         SPEED: <span id="speed-disp">0</span> km/h<br>
         DIST: <span id="dist-disp">0</span> m
     </div>
+    <div id="crash-msg">CRASH!</div>
 
     <div id="controls">
         <div class="d-pad">
@@ -76,11 +74,6 @@
 </div>
 
 <script>
-/**
- * 擬似3D（Raster Road）エンジン
- * 道路を台形の集まりとして描画し、Y座標をずらすことで「坂道」を表現します
- */
-
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
@@ -93,56 +86,42 @@ window.addEventListener('resize', resize);
 resize();
 
 // --- ゲーム設定 ---
-const FPS = 60;
-const SEGMENT_LENGTH = 200; // 道の1区画の長さ
-const DRAW_DISTANCE = 300; // 描画する区画数（視界の距離）
-const ROAD_WIDTH = 2000;   // 道幅
-const CAMERA_HEIGHT = 1000; // カメラの高さ
-const CAMERA_DEPTH = 1 / Math.tan((60 * Math.PI / 180) / 2); // 視野角
-const MAX_SPEED = SEGMENT_LENGTH * 60; // 最高速度
+const SEGMENT_LENGTH = 200;
+const DRAW_DISTANCE = 300;
+const ROAD_WIDTH = 2000;
+const CAMERA_HEIGHT = 1000;
+const CAMERA_DEPTH = 1 / Math.tan((60 * Math.PI / 180) / 2);
+const MAX_SPEED = SEGMENT_LENGTH * 60; 
 const ACCEL = MAX_SPEED / 5;
 const BREAKING = -MAX_SPEED;
 const DECEL = -MAX_SPEED / 5;
 const OFF_ROAD_DECEL = -MAX_SPEED / 2;
 const OFF_ROAD_LIMIT = MAX_SPEED / 4;
+const TOTAL_SEGMENTS = 2000; // コース全長
+const TRACK_LENGTH = TOTAL_SEGMENTS * SEGMENT_LENGTH;
 
 // --- 状態変数 ---
-let position = 0;       // カメラのZ位置（進んだ距離）
-let playerX = 0;        // プレイヤーの横位置 (-1 ~ 1)
+let position = 0;
+let playerX = 0;
 let speed = 0;
-let segments = [];      // コースデータ
+let segments = [];
+let cars = []; // 敵車リスト
 
-// キー入力
-let keyLeft = false;
-let keyRight = false;
-let keyFaster = false;
-let keySlower = false;
+let keyLeft = false; let keyRight = false;
+let keyFaster = false; let keySlower = false;
+
+let crashTimer = 0; // クラッシュ表示用
 
 // --- コース生成 ---
 function createRoad() {
     segments = [];
-    const totalSegments = 2000; // コースの長さ
-
-    for (let i = 0; i < totalSegments; i++) {
-        // 地形の生成（カーブとアップダウン）
-        
-        // 基本の高さとカーブ
-        let curve = 0;
-        let y = 0;
-
-        // 300~700: 大きな登り坂
-        if (i > 300 && i < 700) {
-            y = Math.sin((i - 300) / 400 * Math.PI) * 1500;
-        }
-        // 800~1500: アップダウンとカーブ
+    for (let i = 0; i < TOTAL_SEGMENTS; i++) {
+        let curve = 0; let y = 0;
+        if (i > 300 && i < 700) y = Math.sin((i - 300) / 400 * Math.PI) * 1500;
         else if (i > 800 && i < 1500) {
-            y = Math.sin((i - 800) / 100 * Math.PI) * 1000; // 小刻みな波
+            y = Math.sin((i - 800) / 100 * Math.PI) * 1000;
             curve = Math.cos(i / 100) * 2;
-        }
-        // 最後：急降下
-        else if (i > 1700) {
-            y = -2000 + (i - 1700) * 10;
-        }
+        } else if (i > 1700) y = -2000 + (i - 1700) * 10;
 
         segments.push({
             index: i,
@@ -154,16 +133,30 @@ function createRoad() {
     }
 }
 
-// --- 投影計算（3D -> 2D） ---
+// --- 敵車生成 ---
+function resetCars() {
+    cars = [];
+    const carColors = ['#0000ff', '#00ff00', '#ffff00', '#00ffff'];
+    for (let i = 0; i < 20; i++) { // 20台配置
+        const z = Math.random() * TRACK_LENGTH;
+        // プレイヤーの近くには置かない
+        if (z < 5000) continue; 
+        
+        cars.push({
+            z: z,
+            x: (Math.random() * 1.6) - 0.8, // 道幅の8割くらいにランダム配置
+            speed: (MAX_SPEED * 0.6) + Math.random() * (MAX_SPEED * 0.3), // プレイヤーより少し遅いくらい
+            color: carColors[i % carColors.length]
+        });
+    }
+}
+
+// --- 投影計算 ---
 function project(p, cameraX, cameraY, cameraZ, cameraDepth) {
     p.camera.x = (p.world.x || 0) - cameraX;
     p.camera.y = (p.world.y || 0) - cameraY;
     p.camera.z = (p.world.z || 0) - cameraZ;
-    
-    // スケール計算（遠くほど小さく）
     p.screen.scale = cameraDepth / p.camera.z;
-    
-    // 画面上の座標に変換
     p.screen.x = Math.round((width / 2) + (p.screen.scale * p.camera.x * width / 2));
     p.screen.y = Math.round((height / 2) - (p.screen.scale * p.camera.y * height / 2));
     p.screen.w = Math.round((p.screen.scale * ROAD_WIDTH * width / 2));
@@ -173,166 +166,162 @@ function project(p, cameraX, cameraY, cameraZ, cameraDepth) {
 function renderPolygon(x1, y1, w1, x2, y2, w2, color) {
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.moveTo(x1 - w1, y1);
-    ctx.lineTo(x2 - w2, y2);
-    ctx.lineTo(x2 + w2, y2);
-    ctx.lineTo(x1 + w1, y1);
+    ctx.moveTo(x1 - w1, y1); ctx.lineTo(x2 - w2, y2);
+    ctx.lineTo(x2 + w2, y2); ctx.lineTo(x1 + w1, y1);
     ctx.fill();
 }
 
-function drawPlayer() {
-    // 簡易的な車（後ろ姿）を描画
-    const carW = width * 0.15;
-    const carH = width * 0.08;
-    const carX = width / 2 - carW / 2;
-    const carY = height - carH - 20;
-
-    // 車体
-    ctx.fillStyle = '#d32f2f'; // 赤
-    ctx.fillRect(carX, carY, carW, carH);
+function drawCar(x, y, w, h, color) {
+    // 簡易的な車の描画（プレイヤー・敵共通）
+    ctx.fillStyle = color;
+    ctx.fillRect(x - w/2, y - h, w, h);
     
     // タイヤ
     ctx.fillStyle = '#111';
-    ctx.fillRect(carX - 10, carY + carH/2, 20, carH/2); // 左
-    ctx.fillRect(carX + carW - 10, carY + carH/2, 20, carH/2); // 右
-    
-    // ランプ
-    ctx.fillStyle = '#ffeb3b';
-    if(keyFaster) ctx.fillStyle = '#ff8f00'; // 加速時はオレンジ
-    if(keySlower) ctx.fillStyle = '#ff0000'; // ブレーキは赤
-    
-    ctx.fillRect(carX + 10, carY + 10, 10, 5);
-    ctx.fillRect(carX + carW - 20, carY + 10, 10, 5);
+    ctx.fillRect(x - w/2 - w*0.1, y - h/2, w*0.2, h/2); // 左
+    ctx.fillRect(x + w/2 - w*0.1, y - h/2, w*0.2, h/2); // 右
 
-    // バウンド（走ってる感）
-    if(speed > 0) {
-        const bounce = Math.random() * speed / MAX_SPEED * 4;
-        ctx.fillRect(carX, carY - bounce, carW, carH);
+    // ランプ（プレイヤーのみ）
+    if (color === '#d32f2f') {
+        ctx.fillStyle = (keyFaster) ? '#ff8f00' : ((keySlower) ? '#ff0000' : '#ffeb3b');
+        ctx.fillRect(x - w/2 + w*0.1, y - h*0.3, w*0.2, h*0.1);
+        ctx.fillRect(x + w/2 - w*0.3, y - h*0.3, w*0.2, h*0.1);
     }
 }
 
 // --- ゲームループ ---
 function update(dt) {
     position += speed * dt;
-    // コース周回
-    while (position >= segments.length * SEGMENT_LENGTH) position -= segments.length * SEGMENT_LENGTH;
-    while (position < 0) position += segments.length * SEGMENT_LENGTH;
+    while (position >= TRACK_LENGTH) position -= TRACK_LENGTH;
+    while (position < 0) position += TRACK_LENGTH;
 
-    // 入力処理
-    if (keyLeft) playerX -= 0.003 * (speed / MAX_SPEED) * 2000; // スピードが出ているほど曲がる
+    // プレイヤー移動
+    if (keyLeft) playerX -= 0.003 * (speed / MAX_SPEED) * 2000;
     if (keyRight) playerX += 0.003 * (speed / MAX_SPEED) * 2000;
+    playerX = Math.max(-2, Math.min(2, playerX));
 
     // 加速・減速
     if (keyFaster) speed += ACCEL * dt;
     else if (keySlower) speed += BREAKING * dt;
     else speed += DECEL * dt;
 
-    // コースアウト判定
     if (((playerX < -1) || (playerX > 1)) && (speed > OFF_ROAD_LIMIT)) {
         speed += OFF_ROAD_DECEL * dt;
     }
-
-    // 制限
-    playerX = Math.max(-2, Math.min(2, playerX));
     speed = Math.max(0, Math.min(MAX_SPEED, speed));
+
+    // 敵車の更新
+    for(let car of cars) {
+        car.z += car.speed * dt;
+        if(car.z >= TRACK_LENGTH) car.z -= TRACK_LENGTH;
+        
+        // 衝突判定
+        // Z方向の距離とX方向の距離が近いか
+        let zDist = Math.abs(car.z - position);
+        // コース周回を考慮した距離計算
+        if (zDist > TRACK_LENGTH / 2) zDist = TRACK_LENGTH - zDist;
+
+        if (zDist < 300 && Math.abs(car.x - playerX) < 0.3) {
+            // クラッシュ！
+            speed = Math.min(speed, car.speed * 0.5); // 大幅減速
+            crashTimer = 30; // メッセージ表示時間
+        }
+    }
 
     // UI更新
     document.getElementById('speed-disp').innerText = Math.floor(speed / 100);
     document.getElementById('dist-disp').innerText = Math.floor(position / 100);
+    
+    const crashMsg = document.getElementById('crash-msg');
+    if(crashTimer > 0) {
+        crashMsg.style.display = 'block';
+        crashTimer--;
+    } else {
+        crashMsg.style.display = 'none';
+    }
 }
 
 function render() {
     ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#228B22'; ctx.fillRect(0, height/2, width, height/2);
 
-    // 背景（空と地面）
-    ctx.fillStyle = '#87CEEB'; // 空
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#228B22'; // 地面（緑）
-    ctx.fillRect(0, height/2, width, height/2);
-
-    // レンダリング開始位置のセグメントを探す
     let startPos = Math.floor(position / SEGMENT_LENGTH);
-    let cameraH = CAMERA_HEIGHT + segments[startPos % segments.length].p1.world.y; // カメラの高さを今の道の高さに合わせる
-    let maxy = height; // 描画範囲の下限（手前から描くため、これより下は描かない）
+    let cameraH = CAMERA_HEIGHT + segments[startPos % segments.length].p1.world.y;
+    let maxy = height;
+    let x = 0; let dx = 0;
 
-    let x = 0;
-    let dx = 0;
-
-    // 奥に向かってセグメントを描画
     for (let n = startPos; n < startPos + DRAW_DISTANCE; n++) {
         let segment = segments[n % segments.length];
-        
-        // ループ補正
         let looped = n >= segments.length;
-        let cameraZ = position - (looped ? segments.length * SEGMENT_LENGTH : 0);
-        
-        // カーブ計算
-        x += dx;
-        dx += segment.curve;
+        let cameraZ = position - (looped ? TRACK_LENGTH : 0);
+        x += dx; dx += segment.curve;
 
-        // 座標変換
         project(segment.p1, (playerX * ROAD_WIDTH) - x, cameraH, cameraZ, CAMERA_DEPTH);
         project(segment.p2, (playerX * ROAD_WIDTH) - x - dx, cameraH, cameraZ, CAMERA_DEPTH);
 
-        // クリップ処理（手前の山より低い奥の道は描かない＝山で隠れる）
-        if (segment.p1.screen.y >= maxy) continue;
-        if (segment.p2.screen.y >= segment.p1.screen.y) continue; // 逆勾配などで見えない場合
-        
+        if (segment.p1.screen.y >= maxy || segment.p2.screen.y >= segment.p1.screen.y) continue;
         maxy = segment.p2.screen.y;
 
-        // 描画
-        renderPolygon(0, segment.p1.screen.y, width, 0, segment.p2.screen.y, width, segment.color.grass); // 背景の草
-        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w,
-                      segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.color.road); // 道
+        renderPolygon(0, segment.p1.screen.y, width, 0, segment.p2.screen.y, width, segment.color.grass);
+        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w, segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.color.road);
         
-        // 白線と赤白の縁石
-        let r1 = segment.p1.screen.w / 6; // 白線の幅
-        let r2 = segment.p2.screen.w / 6;
-        let l1 = segment.p1.screen.w * 1.2; // 縁石の位置
-        let l2 = segment.p2.screen.w * 1.2;
-        
-        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, r1, segment.p2.screen.x, segment.p2.screen.y, r2, segment.color.border); // センターライン
-        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, l1, segment.p2.screen.x, segment.p2.screen.y, l2, segment.color.border); // 縁石
-        // 道を上書きして縁石を外側だけにする
-        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w, segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.color.road); 
+        let r1 = segment.p1.screen.w / 6; let r2 = segment.p2.screen.w / 6;
+        let l1 = segment.p1.screen.w * 1.2; let l2 = segment.p2.screen.w * 1.2;
+        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, r1, segment.p2.screen.x, segment.p2.screen.y, r2, segment.color.border);
+        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, l1, segment.p2.screen.x, segment.p2.screen.y, l2, segment.color.border);
+        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w, segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.color.road);
+
+        // 敵車の描画
+        for (let car of cars) {
+            // このセグメント内にいる車を探す
+            // 周回を考慮して位置を調整
+            let carZ = car.z;
+            if (looped && carZ < position) carZ += TRACK_LENGTH;
+            if (!looped && carZ > position + DRAW_DISTANCE * SEGMENT_LENGTH) carZ -= TRACK_LENGTH;
+            
+            if (carZ >= segment.p1.world.z && carZ < segment.p2.world.z) {
+                // 敵車の投影計算
+                let carP = { world: { x: car.x * ROAD_WIDTH, y: segment.p1.world.y, z: carZ }, camera: {}, screen: {} };
+                // プレイヤーの横位置によるカメラのずれと、カーブによるずれ(x)を考慮
+                project(carP, (playerX * ROAD_WIDTH) - x, cameraH, cameraZ, CAMERA_DEPTH);
+
+                if(carP.screen.y > maxy) continue; // 手前の山で隠れる
+
+                let carScale = carP.screen.scale * width;
+                drawCar(carP.screen.x, carP.screen.y, carScale * 2, carScale * 1.5, car.color);
+            }
+        }
     }
 
-    drawPlayer();
+    // プレイヤー描画
+    const carW = width * 0.15; const carH = width * 0.08;
+    drawCar(width / 2, height - 20, carW, carH, '#d32f2f');
 }
 
-// --- ループ ---
 let lastTime = new Date().getTime();
 function frame() {
     let now = new Date().getTime();
-    let dt = Math.min(1, (now - lastTime) / 1000); // デルタタイム
+    let dt = Math.min(1, (now - lastTime) / 1000);
     lastTime = now;
-
     update(dt);
     render();
     requestAnimationFrame(frame);
 }
 
-// --- 入力イベント設定 ---
 function setupBtn(id, targetKey) {
     const btn = document.getElementById(id);
     const on = (e) => { e.preventDefault(); window[targetKey] = true; btn.classList.add('pressed'); };
     const off = (e) => { e.preventDefault(); window[targetKey] = false; btn.classList.remove('pressed'); };
-    
-    btn.addEventListener('touchstart', on);
-    btn.addEventListener('touchend', off);
-    btn.addEventListener('mousedown', on);
-    btn.addEventListener('mouseup', off);
+    btn.addEventListener('touchstart', on); btn.addEventListener('touchend', off);
+    btn.addEventListener('mousedown', on); btn.addEventListener('mouseup', off);
 }
+setupBtn('btn-left', 'keyLeft'); setupBtn('btn-right', 'keyRight');
+setupBtn('btn-gas', 'keyFaster'); setupBtn('btn-brake', 'keySlower');
 
-setupBtn('btn-left', 'keyLeft');
-setupBtn('btn-right', 'keyRight');
-setupBtn('btn-gas', 'keyFaster');
-setupBtn('btn-brake', 'keySlower');
-
-// スタート
 createRoad();
+resetCars();
 frame();
-
 </script>
 </body>
 </html>
