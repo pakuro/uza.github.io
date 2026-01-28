@@ -1,155 +1,338 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
-  <title>Babylon iPad RPG Prototype</title>
-  <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
-  <style>
-    html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:#e6f0ff}
-    #renderCanvas{width:100%;height:100%;touch-action:none;display:block}
-    /* touch UI styles (same as playground prototype) */
-    .vjoy { position: fixed; left: 18px; bottom: 18px; width: 140px; height: 140px; border-radius: 70px; background: rgba(200,200,200,0.08); touch-action:none; z-index:9999; }
-    .vjoy .nub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:64px; height:64px; border-radius:32px; background: rgba(200,200,200,0.28); }
-    .btn { position: fixed; right: 18px; bottom: 18px; width:84px; height:84px; border-radius:42px; background: rgba(255,80,80,0.9); z-index:9999; display:flex; align-items:center; justify-content:center; font-weight:bold; color:white; font-size:18px; touch-action:none;}
-    .btn2 { position: fixed; right: 110px; bottom: 18px; width:64px; height:64px; border-radius:32px; background: rgba(80,150,255,0.95); z-index:9999; display:flex; align-items:center; justify-content:center; font-weight:bold; color:white; font-size:16px; touch-action:none;}
-    .btn3 { position: fixed; right: 18px; bottom: 110px; width:64px; height:64px; border-radius:32px; background: rgba(150,80,255,0.95); z-index:9999; display:flex; align-items:center; justify-content:center; font-weight:bold; color:white; font-size:16px; touch-action:none;}
-  </style>
+    <meta charset="UTF-8">
+    <title>3D Hill Racer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body {
+            margin: 0; background: #000; overflow: hidden;
+            font-family: sans-serif;
+            touch-action: none; user-select: none; -webkit-user-select: none;
+        }
+        #game-container { position: relative; width: 100vw; height: 100vh; background: #87CEEB; }
+        
+        /* キャンバス（ゲーム画面） */
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* UI（スピードメーターなど） */
+        #hud {
+            position: absolute; top: 10px; left: 10px;
+            color: white; font-size: 20px; font-weight: bold;
+            text-shadow: 2px 2px 0 #000; pointer-events: none;
+        }
+
+        /* コントローラー配置 */
+        #controls {
+            position: absolute; bottom: 0; width: 100%; height: 180px;
+            display: flex; justify-content: space-between; padding: 20px;
+            box-sizing: border-box; pointer-events: none; /* エリア自体はクリック透過 */
+        }
+
+        .btn {
+            pointer-events: auto; /* ボタンはクリック可能 */
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            backdrop-filter: blur(5px);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 24px; font-weight: bold;
+            transition: transform 0.1s, background 0.1s;
+        }
+        .btn:active, .btn.pressed { background: rgba(255, 255, 255, 0.5); transform: scale(0.95); }
+
+        /* 左側：ハンドル */
+        .d-pad { display: flex; gap: 10px; align-items: flex-end; }
+        .btn-arrow { width: 70px; height: 70px; font-size: 30px; }
+
+        /* 右側：アクセル・ブレーキ */
+        .action-pad { display: flex; gap: 20px; align-items: flex-end; }
+        .btn-action { width: 80px; height: 80px; font-size: 16px; border-radius: 20px;}
+        .accel { background: rgba(50, 200, 50, 0.4); border-color: #4caf50; }
+        .brake { background: rgba(200, 50, 50, 0.4); border-color: #f44336; width: 60px; height: 60px; font-size: 12px; margin-bottom: 10px;}
+
+    </style>
 </head>
 <body>
-  <canvas id="renderCanvas"></canvas>
 
-  <script>
-  (function(){
-    const canvas = document.getElementById('renderCanvas');
-    const engine = new BABYLON.Engine(canvas, true, {preserveDrawingBuffer:true, stencil:true});
+<div id="game-container">
+    <canvas id="canvas"></canvas>
+    
+    <div id="hud">
+        SPEED: <span id="speed-disp">0</span> km/h<br>
+        DIST: <span id="dist-disp">0</span> m
+    </div>
 
-    function createScene() {
-      const scene = new BABYLON.Scene(engine);
-      scene.clearColor = new BABYLON.Color3(0.8,0.9,1);
+    <div id="controls">
+        <div class="d-pad">
+            <div class="btn btn-arrow" id="btn-left">◀</div>
+            <div class="btn btn-arrow" id="btn-right">▶</div>
+        </div>
+        <div class="action-pad">
+            <div class="btn btn-action brake" id="btn-brake">STOP</div>
+            <div class="btn btn-action accel" id="btn-gas">GO</div>
+        </div>
+    </div>
+</div>
 
-      const light = new BABYLON.HemisphericLight('h', new BABYLON.Vector3(0,1,0), scene);
-      light.intensity = 0.9;
+<script>
+/**
+ * 擬似3D（Raster Road）エンジン
+ * 道路を台形の集まりとして描画し、Y座標をずらすことで「坂道」を表現します
+ */
 
-      const ground = BABYLON.MeshBuilder.CreateGround('g',{width:120,height:120},scene);
-      ground.receiveShadows = true;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
-      // player
-      const player = new BABYLON.TransformNode('player', scene);
-      const body = BABYLON.MeshBuilder.CreateBox('body',{height:1.6,width:0.7,depth:0.4},scene);
-      body.parent = player; body.position.y = 0.9;
-      const head = BABYLON.MeshBuilder.CreateSphere('head',{diameter:0.45},scene);
-      head.parent = player; head.position.y = 1.65;
-      const pm = new BABYLON.StandardMaterial('pm',scene); pm.diffuseColor = new BABYLON.Color3(0.2,0.5,0.8);
-      body.material = pm; head.material = pm;
-      player.position = new BABYLON.Vector3(0,0,0);
-      player.hp = 100; player.maxHp = 100; player.speed = 3.0;
+let width, height;
+function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
 
-      // camera (FollowCamera)
-      const camera = new BABYLON.FollowCamera('cam', new BABYLON.Vector3(0,3,-6), scene);
-      camera.lockedTarget = player; camera.radius = 6; camera.heightOffset = 2; camera.rotationOffset = 0;
-      camera.cameraAcceleration = 0.05; camera.maxCameraSpeed = 10;
-      camera.attachControl(canvas, true);
+// --- ゲーム設定 ---
+const FPS = 60;
+const SEGMENT_LENGTH = 200; // 道の1区画の長さ
+const DRAW_DISTANCE = 300; // 描画する区画数（視界の距離）
+const ROAD_WIDTH = 2000;   // 道幅
+const CAMERA_HEIGHT = 1000; // カメラの高さ
+const CAMERA_DEPTH = 1 / Math.tan((60 * Math.PI / 180) / 2); // 視野角
+const MAX_SPEED = SEGMENT_LENGTH * 60; // 最高速度
+const ACCEL = MAX_SPEED / 5;
+const BREAKING = -MAX_SPEED;
+const DECEL = -MAX_SPEED / 5;
+const OFF_ROAD_DECEL = -MAX_SPEED / 2;
+const OFF_ROAD_LIMIT = MAX_SPEED / 4;
 
-      // GUI
-      const gui = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI('ui', true, scene);
-      const playerHPBar = new BABYLON.GUI.Rectangle();
-      playerHPBar.width = '220px'; playerHPBar.height = '28px'; playerHPBar.cornerRadius = 5; playerHPBar.color = 'black'; playerHPBar.thickness = 2;
-      playerHPBar.background = 'rgba(0,0,0,0.3)'; playerHPBar.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-      playerHPBar.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP; playerHPBar.left = '12px'; playerHPBar.top = '12px';
-      gui.addControl(playerHPBar);
-      const playerHPFill = new BABYLON.GUI.Rectangle(); playerHPFill.width = '100%'; playerHPFill.height = '100%'; playerHPFill.background = 'green'; playerHPFill.cornerRadius = 5; playerHPBar.addControl(playerHPFill);
-      const playerHPText = new BABYLON.GUI.TextBlock(); playerHPText.text = 'HP: 100/100'; playerHPText.color = 'white'; playerHPText.fontSize = 14; playerHPBar.addControl(playerHPText);
+// --- 状態変数 ---
+let position = 0;       // カメラのZ位置（進んだ距離）
+let playerX = 0;        // プレイヤーの横位置 (-1 ~ 1)
+let speed = 0;
+let segments = [];      // コースデータ
 
-      // enemy creation
-      function createEnemy(posX,posZ) {
-        const root = new BABYLON.TransformNode('enemyRoot', scene);
-        const mesh = BABYLON.MeshBuilder.CreateBox('enemy',{height:1.6,width:0.8,depth:0.5},scene);
-        mesh.parent = root; mesh.position.y = 0.8;
-        const em = new BABYLON.StandardMaterial('em',scene); em.diffuseColor = new BABYLON.Color3(0.8,0.2,0.2);
-        mesh.material = em;
-        root.position = new BABYLON.Vector3(posX,0,posZ);
-        root.hp = 120; root.maxHp = 120; root.isAlive = true;
-        const eBar = new BABYLON.GUI.Rectangle(); eBar.width='140px'; eBar.height='12px'; eBar.background='rgba(0,0,0,0.5)'; eBar.cornerRadius=4; eBar.thickness=1; eBar.color='black'; gui.addControl(eBar);
-        eBar.linkWithMesh(root); eBar.linkOffsetY = -120;
-        const eFill = new BABYLON.GUI.Rectangle(); eFill.width='100%'; eFill.height='100%'; eFill.background='red'; eFill.cornerRadius=4; eBar.addControl(eFill);
-        root._hpFill = eFill; return root;
-      }
+// キー入力
+let keyLeft = false;
+let keyRight = false;
+let keyFaster = false;
+let keySlower = false;
 
-      const enemy = createEnemy(0,12);
+// --- コース生成 ---
+function createRoad() {
+    segments = [];
+    const totalSegments = 2000; // コースの長さ
 
-      // inputs
-      let moveInput = {x:0,y:0};
+    for (let i = 0; i < totalSegments; i++) {
+        // 地形の生成（カーブとアップダウン）
+        
+        // 基本の高さとカーブ
+        let curve = 0;
+        let y = 0;
 
-      // create touch UI elements (DOM)
-      (function createTouchUI(){
-        // joystick
-        const joy = document.createElement('div'); joy.className = 'vjoy';
-        const nub = document.createElement('div'); nub.className = 'nub'; joy.appendChild(nub); document.body.appendChild(joy);
-        const atk = document.createElement('div'); atk.className = 'btn'; atk.innerText='Attack'; document.body.appendChild(atk);
-        const m1 = document.createElement('div'); m1.className='btn2'; m1.innerText='F1'; const m2 = document.createElement('div'); m2.className='btn3'; m2.innerText='F2'; document.body.appendChild(m1); document.body.appendChild(m2);
+        // 300~700: 大きな登り坂
+        if (i > 300 && i < 700) {
+            y = Math.sin((i - 300) / 400 * Math.PI) * 1500;
+        }
+        // 800~1500: アップダウンとカーブ
+        else if (i > 800 && i < 1500) {
+            y = Math.sin((i - 800) / 100 * Math.PI) * 1000; // 小刻みな波
+            curve = Math.cos(i / 100) * 2;
+        }
+        // 最後：急降下
+        else if (i > 1700) {
+            y = -2000 + (i - 1700) * 10;
+        }
 
-        let active=false, origin=null;
-        joy.addEventListener('pointerdown',(e)=>{ active=true; origin={x:e.clientX,y:e.clientY}; joy.setPointerCapture(e.pointerId);});
-        joy.addEventListener('pointermove',(e)=>{ if(!active) return; const dx=e.clientX-origin.x; const dy=e.clientY-origin.y; const max=40; const nx=Math.max(-max,Math.min(max,dx)); const ny=Math.max(-max,Math.min(max,dy)); nub.style.transform = `translate(${nx}px, ${ny}px)`; moveInput.x = nx/max; moveInput.y = -ny/max; });
-        joy.addEventListener('pointerup',(e)=>{ active=false; origin=null; nub.style.transform='translate(-50%,-50%)'; moveInput.x=0; moveInput.y=0; joy.releasePointerCapture(e.pointerId);});
+        segments.push({
+            index: i,
+            p1: { world: { x: 0, y: y * 3, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
+            p2: { world: { x: 0, y: y * 3, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
+            curve: curve,
+            color: Math.floor(i / 3) % 2 ? { road: '#666', grass: '#1a8c1a', border: '#fff' } : { road: '#636363', grass: '#137513', border: '#c00' }
+        });
+    }
+}
 
-        // camera swipe
-        let camTouch={active:false,id:null,lastX:0,lastY:0};
-        canvas.addEventListener('pointerdown',(e)=>{ if(e.clientX > window.innerWidth/2){ camTouch.active=true; camTouch.id=e.pointerId; camTouch.lastX=e.clientX; camTouch.lastY=e.clientY; canvas.setPointerCapture(e.pointerId); } });
-        canvas.addEventListener('pointermove',(e)=>{ if(!camTouch.active || camTouch.id!==e.pointerId) return; const dx = e.clientX-camTouch.lastX; const dy = e.clientY-camTouch.lastY; camTouch.lastX=e.clientX; camTouch.lastY=e.clientY; camera.alpha -= dx * 0.0025; camera.beta -= dy * 0.0025; camera.beta = Math.max(0.6, Math.min(1.5, camera.beta)); });
-        canvas.addEventListener('pointerup',(e)=>{ if(camTouch.id === e.pointerId){ camTouch.active=false; camTouch.id=null; canvas.releasePointerCapture(e.pointerId); } });
+// --- 投影計算（3D -> 2D） ---
+function project(p, cameraX, cameraY, cameraZ, cameraDepth) {
+    p.camera.x = (p.world.x || 0) - cameraX;
+    p.camera.y = (p.world.y || 0) - cameraY;
+    p.camera.z = (p.world.z || 0) - cameraZ;
+    
+    // スケール計算（遠くほど小さく）
+    p.screen.scale = cameraDepth / p.camera.z;
+    
+    // 画面上の座標に変換
+    p.screen.x = Math.round((width / 2) + (p.screen.scale * p.camera.x * width / 2));
+    p.screen.y = Math.round((height / 2) - (p.screen.scale * p.camera.y * height / 2));
+    p.screen.w = Math.round((p.screen.scale * ROAD_WIDTH * width / 2));
+}
 
-        // attack & magic
-        atk.addEventListener('pointerdown', (e)=>{ doAttack(); atk.style.transform='scale(0.95)'; }); atk.addEventListener('pointerup',(e)=>{ atk.style.transform='scale(1)'; });
-        let lastFire=-9999, lastIce=-9999; const fireCooldown=3000, iceCooldown=5000;
-        m1.addEventListener('pointerdown',(e)=>{ const now = performance.now(); if(now - lastFire >= fireCooldown){ lastFire = now; fireMagic(); m1.style.opacity='0.5'; setTimeout(()=>m1.style.opacity='1',300); } });
-        m2.addEventListener('pointerdown',(e)=>{ const now = performance.now(); if(now - lastIce >= iceCooldown){ lastIce = now; iceMagic(); m2.style.opacity='0.5'; setTimeout(()=>m2.style.opacity='1',300); } });
-      })();
+// --- 描画関数 ---
+function renderPolygon(x1, y1, w1, x2, y2, w2, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x1 - w1, y1);
+    ctx.lineTo(x2 - w2, y2);
+    ctx.lineTo(x2 + w2, y2);
+    ctx.lineTo(x1 + w1, y1);
+    ctx.fill();
+}
 
-      // attack
-      const projectiles = [];
-      function doAttack(){ const origin = player.position.add(new BABYLON.Vector3(0,1.2,0)); const forward = new BABYLON.Vector3(Math.sin(camera.alpha),0,Math.cos(camera.alpha)); const ray = new BABYLON.Ray(origin, forward, 3.0); const pick = scene.pickWithRay(ray, (m)=> m && m.parent === enemy);
-        if(pick && pick.hit){ damageEnemy(enemy,25); }
-        const s = BABYLON.MeshBuilder.CreateTorus('swing',{thickness:0.06,diameter:1.6,tessellation:24},scene); s.position = origin.add(forward.scale(1.2)); s.rotation.x = Math.PI/2; s.material = new BABYLON.StandardMaterial('sm',scene); s.material.emissiveColor = new BABYLON.Color3(1,0.6,0.1); setTimeout(()=>{ s.dispose(); },150);
-      }
+function drawPlayer() {
+    // 簡易的な車（後ろ姿）を描画
+    const carW = width * 0.15;
+    const carH = width * 0.08;
+    const carX = width / 2 - carW / 2;
+    const carY = height - carH - 20;
 
-      function fireMagic(){ const origin = player.position.add(new BABYLON.Vector3(0,1.2,0)); const forward = new BABYLON.Vector3(Math.sin(camera.alpha),0,Math.cos(camera.alpha)); const proj = BABYLON.MeshBuilder.CreateSphere('fire',{diameter:0.4},scene); proj.position = origin.add(forward.scale(1.2)); proj.material = new BABYLON.StandardMaterial('fm',scene); proj.material.emissiveColor = new BABYLON.Color3(1,0.3,0.1); proj._vel = forward.scale(12); proj._life = 3000; proj._type='fire'; projectiles.push(proj); }
-      function iceMagic(){ const origin = player.position.add(new BABYLON.Vector3(0,1.2,0)); const forward = new BABYLON.Vector3(Math.sin(camera.alpha),0,Math.cos(camera.alpha)); const proj = BABYLON.MeshBuilder.CreateSphere('ice',{diameter:0.45},scene); proj.position = origin.add(forward.scale(1.2)); proj.material = new BABYLON.StandardMaterial('im',scene); proj.material.emissiveColor = new BABYLON.Color3(0.4,0.8,1); proj._vel = forward.scale(10); proj._life = 3000; proj._type='ice'; projectiles.push(proj); }
+    // 車体
+    ctx.fillStyle = '#d32f2f'; // 赤
+    ctx.fillRect(carX, carY, carW, carH);
+    
+    // タイヤ
+    ctx.fillStyle = '#111';
+    ctx.fillRect(carX - 10, carY + carH/2, 20, carH/2); // 左
+    ctx.fillRect(carX + carW - 10, carY + carH/2, 20, carH/2); // 右
+    
+    // ランプ
+    ctx.fillStyle = '#ffeb3b';
+    if(keyFaster) ctx.fillStyle = '#ff8f00'; // 加速時はオレンジ
+    if(keySlower) ctx.fillStyle = '#ff0000'; // ブレーキは赤
+    
+    ctx.fillRect(carX + 10, carY + 10, 10, 5);
+    ctx.fillRect(carX + carW - 20, carY + 10, 10, 5);
 
-      function damageEnemy(e,dmg){ if(!e.isAlive) return; e.hp -= dmg; e._hpFill.width = Math.max(0,(e.hp/e.maxHp)*100) + '%'; if(e.hp <= 0){ e.isAlive = false; const boom = BABYLON.MeshBuilder.CreateSphere('b',{diameter:1.6},scene); boom.position = e.position.add(new BABYLON.Vector3(0,1,0)); boom.material = new BABYLON.StandardMaterial('bm',scene); boom.material.emissiveColor = new BABYLON.Color3(1,0.3,0.1); setTimeout(()=>{ boom.dispose(); e.getChildren().forEach(c=>c.dispose()); try{ e.dispose(); }catch(e){} },400); } }
+    // バウンド（走ってる感）
+    if(speed > 0) {
+        const bounce = Math.random() * speed / MAX_SPEED * 4;
+        ctx.fillRect(carX, carY - bounce, carW, carH);
+    }
+}
 
-      // burn
-      function applyBurn(target, ticks, dmg){ if(!target.isAlive) return; let count=0; const iv = setInterval(()=>{ if(!target.isAlive){ clearInterval(iv); return; } damageEnemy(target,dmg); count++; if(count>=ticks) clearInterval(iv); },600); }
+// --- ゲームループ ---
+function update(dt) {
+    position += speed * dt;
+    // コース周回
+    while (position >= segments.length * SEGMENT_LENGTH) position -= segments.length * SEGMENT_LENGTH;
+    while (position < 0) position += segments.length * SEGMENT_LENGTH;
 
-      // game loop
-      scene.onBeforeRenderObservable.add(()=>{
-        const dt = scene.getEngine().getDeltaTime() / 1000;
-        for(let i = projectiles.length-1;i>=0;i--){ const p = projectiles[i]; p.position.addInPlace(p._vel.scale(dt)); p._life -= dt*1000; if(enemy.isAlive && p.position.subtract(enemy.position).length() < 1.2){ if(p._type==='fire'){ damageEnemy(enemy,35); applyBurn(enemy,3,4); } else if(p._type==='ice'){ damageEnemy(enemy,18); enemy._slow = 2.5; } p.dispose(); projectiles.splice(i,1); continue; } if(p._life <= 0){ p.dispose(); projectiles.splice(i,1); } }
+    // 入力処理
+    if (keyLeft) playerX -= 0.003 * (speed / MAX_SPEED) * 2000; // スピードが出ているほど曲がる
+    if (keyRight) playerX += 0.003 * (speed / MAX_SPEED) * 2000;
 
-        // enemy movement
-        if(enemy.isAlive){ const dir = player.position.subtract(enemy.position); const dist = dir.length(); if(dist > 2.0){ const speed = 1.5 * (enemy._slow ? 0.5 : 1.0); const m = dir.normalize().scale(-1 * speed * dt); enemy.position.addInPlace(m); } else { if(!enemy._lastAtk || performance.now() - enemy._lastAtk > 1200){ enemy._lastAtk = performance.now(); player.hp -= 12; playerHPFill.width = Math.max(0,(player.hp/player.maxHp)*100) + '%'; playerHPText.text = `HP: ${Math.max(0,player.hp)}/${player.maxHp}`; } } if(enemy._slow){ enemy._slowTimer = (enemy._slowTimer||0) + dt; if(enemy._slowTimer >= enemy._slow){ enemy._slow = 0; enemy._slowTimer = 0; } } }
+    // 加速・減速
+    if (keyFaster) speed += ACCEL * dt;
+    else if (keySlower) speed += BREAKING * dt;
+    else speed += DECEL * dt;
 
-        // movement
-        if(Math.abs(moveInput.x) > 0.01 || Math.abs(moveInput.y) > 0.01){ const alpha = camera.alpha; const forward = new BABYLON.Vector3(Math.sin(alpha),0,Math.cos(alpha)); const right = new BABYLON.Vector3(forward.z * -1, 0, forward.x); const worldMove = forward.scale(moveInput.y).add(right.scale(moveInput.x)); if(worldMove.length() > 0.001){ const step = worldMove.normalize().scale(player.speed * dt); player.position.addInPlace(step); player.rotation = new BABYLON.Vector3(0, Math.atan2(worldMove.x, worldMove.z), 0); } }
-
-        if(player.position.y < 0) player.position.y = 0;
-        if(player.hp <= 0){ player.position = new BABYLON.Vector3(0,0,0); player.hp = player.maxHp; playerHPFill.width = '100%'; playerHPText.text = `HP: ${player.hp}/${player.maxHp}`; // respawn enemy
-          enemy.position = new BABYLON.Vector3(0,0,12); enemy.hp = enemy.maxHp; enemy.isAlive = true; enemy._hpFill.width = '100%'; }
-      });
-
-      // initial camera
-      camera.alpha = Math.PI; camera.beta = 0.9;
-      const lightSphere = BABYLON.MeshBuilder.CreateSphere('ls',{diameter:0.2},scene); lightSphere.position = new BABYLON.Vector3(2,0.2,2); const lm = new BABYLON.StandardMaterial('lm',scene); lm.emissiveColor = new BABYLON.Color3(1,1,0.6); lightSphere.material = lm;
-
-      return scene;
+    // コースアウト判定
+    if (((playerX < -1) || (playerX > 1)) && (speed > OFF_ROAD_LIMIT)) {
+        speed += OFF_ROAD_DECEL * dt;
     }
 
-    const scene = createScene();
-    engine.runRenderLoop(()=>{ if(scene) scene.render(); });
-    window.addEventListener('resize', ()=>{ engine.resize(); });
-  })();
-  </script>
+    // 制限
+    playerX = Math.max(-2, Math.min(2, playerX));
+    speed = Math.max(0, Math.min(MAX_SPEED, speed));
+
+    // UI更新
+    document.getElementById('speed-disp').innerText = Math.floor(speed / 100);
+    document.getElementById('dist-disp').innerText = Math.floor(position / 100);
+}
+
+function render() {
+    ctx.clearRect(0, 0, width, height);
+
+    // 背景（空と地面）
+    ctx.fillStyle = '#87CEEB'; // 空
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#228B22'; // 地面（緑）
+    ctx.fillRect(0, height/2, width, height/2);
+
+    // レンダリング開始位置のセグメントを探す
+    let startPos = Math.floor(position / SEGMENT_LENGTH);
+    let cameraH = CAMERA_HEIGHT + segments[startPos % segments.length].p1.world.y; // カメラの高さを今の道の高さに合わせる
+    let maxy = height; // 描画範囲の下限（手前から描くため、これより下は描かない）
+
+    let x = 0;
+    let dx = 0;
+
+    // 奥に向かってセグメントを描画
+    for (let n = startPos; n < startPos + DRAW_DISTANCE; n++) {
+        let segment = segments[n % segments.length];
+        
+        // ループ補正
+        let looped = n >= segments.length;
+        let cameraZ = position - (looped ? segments.length * SEGMENT_LENGTH : 0);
+        
+        // カーブ計算
+        x += dx;
+        dx += segment.curve;
+
+        // 座標変換
+        project(segment.p1, (playerX * ROAD_WIDTH) - x, cameraH, cameraZ, CAMERA_DEPTH);
+        project(segment.p2, (playerX * ROAD_WIDTH) - x - dx, cameraH, cameraZ, CAMERA_DEPTH);
+
+        // クリップ処理（手前の山より低い奥の道は描かない＝山で隠れる）
+        if (segment.p1.screen.y >= maxy) continue;
+        if (segment.p2.screen.y >= segment.p1.screen.y) continue; // 逆勾配などで見えない場合
+        
+        maxy = segment.p2.screen.y;
+
+        // 描画
+        renderPolygon(0, segment.p1.screen.y, width, 0, segment.p2.screen.y, width, segment.color.grass); // 背景の草
+        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w,
+                      segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.color.road); // 道
+        
+        // 白線と赤白の縁石
+        let r1 = segment.p1.screen.w / 6; // 白線の幅
+        let r2 = segment.p2.screen.w / 6;
+        let l1 = segment.p1.screen.w * 1.2; // 縁石の位置
+        let l2 = segment.p2.screen.w * 1.2;
+        
+        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, r1, segment.p2.screen.x, segment.p2.screen.y, r2, segment.color.border); // センターライン
+        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, l1, segment.p2.screen.x, segment.p2.screen.y, l2, segment.color.border); // 縁石
+        // 道を上書きして縁石を外側だけにする
+        renderPolygon(segment.p1.screen.x, segment.p1.screen.y, segment.p1.screen.w, segment.p2.screen.x, segment.p2.screen.y, segment.p2.screen.w, segment.color.road); 
+    }
+
+    drawPlayer();
+}
+
+// --- ループ ---
+let lastTime = new Date().getTime();
+function frame() {
+    let now = new Date().getTime();
+    let dt = Math.min(1, (now - lastTime) / 1000); // デルタタイム
+    lastTime = now;
+
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+}
+
+// --- 入力イベント設定 ---
+function setupBtn(id, targetKey) {
+    const btn = document.getElementById(id);
+    const on = (e) => { e.preventDefault(); window[targetKey] = true; btn.classList.add('pressed'); };
+    const off = (e) => { e.preventDefault(); window[targetKey] = false; btn.classList.remove('pressed'); };
+    
+    btn.addEventListener('touchstart', on);
+    btn.addEventListener('touchend', off);
+    btn.addEventListener('mousedown', on);
+    btn.addEventListener('mouseup', off);
+}
+
+setupBtn('btn-left', 'keyLeft');
+setupBtn('btn-right', 'keyRight');
+setupBtn('btn-gas', 'keyFaster');
+setupBtn('btn-brake', 'keySlower');
+
+// スタート
+createRoad();
+frame();
+
+</script>
 </body>
 </html>
