@@ -1,116 +1,83 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Auto Runner</title>
+<title>Block Blast 8x8</title>
 <style>
-  body { margin: 0; background: #111; }
-  canvas { display: block; margin: auto; background: #222; }
+body { font-family: sans-serif; text-align: center; background:#111; color:white;}
+#board { display:grid; grid-template-columns: repeat(8,40px); gap:2px; margin:20px auto;}
+.cell { width:40px; height:40px; background:#333; }
+.filled { background:#4caf50; }
+button { margin:5px; padding:10px; }
 </style>
 </head>
 <body>
 
-<canvas id="game" width="800" height="400"></canvas>
+<h1>Block Blast 8×8</h1>
+<button onclick="mode='player'">プレイヤーモード</button>
+<button onclick="mode='ai'">AIモード</button>
+
+<div id="board"></div>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const size = 8;
+let board = [];
+let mode = "player";
 
-// プレイヤー
-let player = {
-  x: 100,
-  y: 300,
-  w: 30,
-  h: 30,
-  vy: 0,
-  jump: false
-};
-
-// 重力
-const gravity = 0.8;
-
-// 障害物
-let obstacles = [];
-let speed = 4;
-let score = 0;
-
-// ジャンプ
-document.addEventListener("keydown", e => {
-  if (e.code === "Space" && !player.jump) {
-    player.vy = -14;
-    player.jump = true;
-  }
-});
-canvas.addEventListener("click", () => {
-  if (!player.jump) {
-    player.vy = -14;
-    player.jump = true;
-  }
-});
-
-// 障害物生成
-function spawnObstacle() {
-  obstacles.push({
-    x: canvas.width,
-    y: 320,
-    w: 30,
-    h: 40
-  });
+function init(){
+    board = Array(size).fill().map(()=>Array(size).fill(0));
+    draw();
 }
-setInterval(spawnObstacle, 1200);
-
-// 更新
-function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // プレイヤー
-  player.vy += gravity;
-  player.y += player.vy;
-
-  if (player.y >= 300) {
-    player.y = 300;
-    player.vy = 0;
-    player.jump = false;
-  }
-
-  ctx.fillStyle = "cyan";
-  ctx.fillRect(player.x, player.y, player.w, player.h);
-
-  // 障害物
-  ctx.fillStyle = "red";
-  obstacles.forEach((o, i) => {
-    o.x -= speed;
-    ctx.fillRect(o.x, o.y, o.w, o.h);
-
-    // 当たり判定
-    if (
-      player.x < o.x + o.w &&
-      player.x + player.w > o.x &&
-      player.y < o.y + o.h &&
-      player.y + player.h > o.y
-    ) {
-      alert("GAME OVER\nScore: " + score);
-      location.reload();
+function draw(){
+    const boardDiv = document.getElementById("board");
+    boardDiv.innerHTML="";
+    for(let y=0;y<size;y++){
+        for(let x=0;x<size;x++){
+            const cell=document.createElement("div");
+            cell.className="cell"+(board[y][x]?" filled":"");
+            cell.onclick=()=>placeBlock(y,x);
+            boardDiv.appendChild(cell);
+        }
     }
-
-    if (o.x + o.w < 0) obstacles.splice(i, 1);
-  });
-
-  // 地面
-  ctx.fillStyle = "#555";
-  ctx.fillRect(0, 340, canvas.width, 60);
-
-  // スコア
-  score++;
-  ctx.fillStyle = "white";
-  ctx.font = "20px sans-serif";
-  ctx.fillText("Score: " + score, 10, 30);
-
-  requestAnimationFrame(update);
 }
 
-update();
-</script>
+function placeBlock(y,x){
+    if(board[y][x]==0){
+        board[y][x]=1;
+        clearLines();
+        draw();
+    }
+}
 
+function clearLines(){
+    for(let i=0;i<size;i++){
+        if(board[i].every(v=>v==1)){
+            board[i].fill(0);
+        }
+        if(board.map(r=>r[i]).every(v=>v==1)){
+            for(let j=0;j<size;j++) board[j][i]=0;
+        }
+    }
+}
+
+function aiMove(){
+    for(let y=0;y<size;y++){
+        for(let x=0;x<size;x++){
+            if(board[y][x]==0){
+                board[y][x]=1;
+                clearLines();
+                draw();
+                return;
+            }
+        }
+    }
+}
+
+setInterval(()=>{
+    if(mode==="ai") aiMove();
+},500);
+
+init();
+</script>
 </body>
 </html>
