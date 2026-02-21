@@ -2,11 +2,11 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Block Blast 8x8 Ultimate</title>
+<title>Block Blast Pro</title>
 <style>
 body{
     margin:0;
-    background:white;
+    background:#f4f6fb;
     display:flex;
     justify-content:center;
     align-items:center;
@@ -18,39 +18,50 @@ body{
 }
 #board{
     display:grid;
-    grid-template-columns:repeat(8,50px);
-    gap:4px;
-    background:#222;
-    padding:10px;
+    grid-template-columns:repeat(8,60px);
+    gap:6px;
+    background:#2b2f3a;
+    padding:12px;
+    border-radius:15px;
 }
 .cell{
-    width:50px;
-    height:50px;
-    background:#eee;
+    width:60px;
+    height:60px;
+    background:#e0e4f2;
+    border-radius:10px;
 }
 .filled{
-    border-radius:6px;
+    box-shadow:inset -4px -4px 8px rgba(0,0,0,0.2),
+               inset 4px 4px 8px rgba(255,255,255,0.4);
+}
+.highlight{
+    background:#c3ffcc !important;
 }
 #pieces{
     margin-top:20px;
 }
 .piece{
     display:inline-block;
-    margin:10px;
-    cursor:pointer;
-    font-size:20px;
+    margin:15px;
+    cursor:grab;
+}
+.piece-cell{
+    width:20px;
+    height:20px;
+    display:inline-block;
+    border-radius:4px;
 }
 button{
     margin:5px;
-    padding:8px 12px;
+    padding:8px 15px;
 }
 </style>
 </head>
 <body>
 <div id="container">
-<h2>Block Blast 8×8</h2>
+<h2>Block Blast 8×8 Pro</h2>
 <button onclick="mode='player'">プレイヤー</button>
-<button onclick="mode='ai'">超強AI</button>
+<button onclick="mode='ai'">AI</button>
 <div id="board"></div>
 <div id="pieces"></div>
 <h3 id="status"></h3>
@@ -60,28 +71,34 @@ button{
 const size=8;
 let board=[];
 let pieces=[];
-let selected=null;
+let dragging=null;
 let mode="player";
-let score=0;
 
 const shapes=[
 [[1]],
 [[1,1]],
-[[1],[1]],
 [[1,1,1]],
+[[1,1,1,1]],
+[[1,1,1,1,1]],
+[[1],[1]],
 [[1],[1],[1]],
 [[1,1],[1,1]],
+[[1,0],[1,1]],
 [[1,1,1],[0,1,0]],
-[[1,1,0],[0,1,1]]
+[[1,1,0],[0,1,1]],
+[[0,1,1],[1,1,0]],
+[[1,1,1],[1,1,1],[1,1,1]],
+[[1,1,1],[1,1,1]]
 ];
 
 function randomColor(){
-    return `hsl(${Math.random()*360},70%,60%)`;
+    return `linear-gradient(145deg,
+        hsl(${Math.random()*360},70%,70%),
+        hsl(${Math.random()*360},70%,50%))`;
 }
 
 function init(){
     board=Array(size).fill().map(()=>Array(size).fill(0));
-    score=0;
     generatePieces();
     draw();
 }
@@ -97,11 +114,11 @@ function draw(){
                 c.classList.add("filled");
                 c.style.background=board[y][x];
             }
-            c.onclick=()=>tryPlace(y,x);
+            c.dataset.y=y;
+            c.dataset.x=x;
             b.appendChild(c);
         }
     }
-    drawPieces();
 }
 
 function drawPieces(){
@@ -110,18 +127,50 @@ function drawPieces(){
     pieces.forEach((obj,i)=>{
         const div=document.createElement("div");
         div.className="piece";
-        div.onclick=()=>selected=i;
-        div.innerHTML=obj.shape.map(r=>r.map(c=>c?"⬛":"⬜").join("")).join("<br>");
-        div.style.color=obj.color;
+        div.draggable=true;
+        div.ondragstart=()=>dragging=i;
+
+        obj.shape.forEach(row=>{
+            const rowDiv=document.createElement("div");
+            row.forEach(cell=>{
+                const c=document.createElement("div");
+                c.className="piece-cell";
+                if(cell){
+                    c.style.background=obj.color;
+                    c.style.boxShadow="inset -2px -2px 4px rgba(0,0,0,0.2)";
+                }
+                rowDiv.appendChild(c);
+            });
+            div.appendChild(rowDiv);
+        });
         p.appendChild(div);
     });
 }
 
-function canPlace(shape,y,x,grid=board){
+document.addEventListener("dragover",e=>e.preventDefault());
+
+document.addEventListener("drop",e=>{
+    if(mode!=="player") return;
+    const cell=e.target;
+    if(!cell.classList.contains("cell")) return;
+    const y=parseInt(cell.dataset.y);
+    const x=parseInt(cell.dataset.x);
+    const obj=pieces[dragging];
+    if(canPlace(obj.shape,y,x)){
+        place(obj,y,x);
+        pieces.splice(dragging,1);
+        if(pieces.length===0) generatePieces();
+        draw();
+        drawPieces();
+    }
+});
+
+function canPlace(shape,y,x){
     for(let dy=0;dy<shape.length;dy++){
         for(let dx=0;dx<shape[0].length;dx++){
             if(shape[dy][dx]){
-                if(y+dy>=size||x+dx>=size||grid[y+dy][x+dx]) return false;
+                if(y+dy>=size||x+dx>=size||board[y+dy][x+dx])
+                    return false;
             }
         }
     }
@@ -147,146 +196,47 @@ function clearLines(){
     }
 }
 
-function tryPlace(y,x){
-    if(mode!=="player"||selected==null) return;
-    let obj=pieces[selected];
-    if(canPlace(obj.shape,y,x)){
-        place(obj,y,x);
-        pieces.splice(selected,1);
-        selected=null;
-        if(pieces.length==0) generatePieces();
-        if(!anyMovePossible()) gameOver();
-        draw();
-    }
-}
-
-function anyMovePossible(){
-    for(let obj of pieces){
-        for(let y=0;y<size;y++){
-            for(let x=0;x<size;x++){
-                if(canPlace(obj.shape,y,x)) return true;
-            }
-        }
-    }
-    return false;
-}
-
-/* ===== 3ブロック保証生成（順番固定） ===== */
 function generatePieces(){
-    while(true){
-        let trial=[];
-        for(let i=0;i<3;i++){
-            let shape=shapes[Math.floor(Math.random()*shapes.length)];
-            trial.push({shape:shape,color:randomColor()});
-        }
-        if(canPlaceInOrder(trial)){
-            pieces=trial;
-            return;
-        }
+    let trial=[];
+    let nineCount=0;
+
+    for(let i=0;i<3;i++){
+        let shape=shapes[Math.floor(Math.random()*shapes.length)];
+        if(shape.length===3 && shape[0].length===3) nineCount++;
+        trial.push({shape:shape,color:randomColor()});
     }
+
+    if(nineCount>=2 && Math.random()<0.6){
+        trial[2]={shape:[[1,1,1],[1,1,1]],color:randomColor()};
+    }
+
+    pieces=trial;
+    drawPieces();
 }
 
-function canPlaceInOrder(trial){
-    let temp=JSON.parse(JSON.stringify(board));
-
-    for(let obj of trial){
-        let placed=false;
-
-        for(let y=0;y<size;y++){
-            for(let x=0;x<size;x++){
-                if(canPlace(obj.shape,y,x,temp)){
-                    simulatePlace(obj,y,x,temp);
-                    clearSimLines(temp);
-                    placed=true;
-                    break;
-                }
-            }
-            if(placed) break;
-        }
-
-        if(!placed) return false;
-    }
-    return true;
-}
-
-function simulatePlace(obj,y,x,temp){
-    for(let dy=0;dy<obj.shape.length;dy++){
-        for(let dx=0;dx<obj.shape[0].length;dx++){
-            if(obj.shape[dy][dx])
-                temp[y+dy][x+dx]="x";
-        }
-    }
-}
-
-function clearSimLines(temp){
-    for(let i=0;i<size;i++){
-        if(temp[i].every(v=>v)) temp[i].fill(0);
-        if(temp.map(r=>r[i]).every(v=>v)){
-            for(let j=0;j<size;j++) temp[j][i]=0;
-        }
-    }
-}
-
-/* ===== 超強AI ===== */
 function aiMove(){
-    let best=null;
-    let bestScore=-Infinity;
+    if(mode!=="ai") return;
 
     for(let i=0;i<pieces.length;i++){
-        let obj=pieces[i];
         for(let y=0;y<size;y++){
             for(let x=0;x<size;x++){
-                if(canPlace(obj.shape,y,x)){
-                    let temp=JSON.parse(JSON.stringify(board));
-                    simulatePlace(obj,y,x,temp);
-                    let score=evaluateBoard(temp);
-                    if(score>bestScore){
-                        bestScore=score;
-                        best={i,y,x};
-                    }
+                if(canPlace(pieces[i].shape,y,x)){
+                    place(pieces[i],y,x);
+                    pieces.splice(i,1);
+                    if(pieces.length===0) generatePieces();
+                    draw();
+                    drawPieces();
+                    return;
                 }
             }
         }
     }
-
-    if(best){
-        let obj=pieces[best.i];
-        place(obj,best.y,best.x);
-        pieces.splice(best.i,1);
-        if(pieces.length==0) generatePieces();
-        if(!anyMovePossible()) gameOver();
-        draw();
-    }
 }
 
-function evaluateBoard(temp){
-    let score=0;
-
-    for(let i=0;i<size;i++){
-        if(temp[i].every(v=>v)) score+=100;
-        if(temp.map(r=>r[i]).every(v=>v)) score+=100;
-    }
-
-    for(let y=0;y<size;y++){
-        for(let x=0;x<size;x++){
-            if(temp[y][x]){
-                let dist=Math.abs(3.5-y)+Math.abs(3.5-x);
-                score+=10-dist;
-            }
-        }
-    }
-
-    return score;
-}
-
-function gameOver(){
-    document.getElementById("status").innerText="ゲームオーバー";
-    mode="stop";
-}
-
-setInterval(()=>{ if(mode==="ai") aiMove(); },300);
+setInterval(aiMove,700); // ← 0.7倍速
 
 init();
+drawPieces();
 </script>
 </body>
 </html>
