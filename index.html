@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Block Blast — Poki Style</title>
+<title>Block Blast — Custom (8x8, 3x3 rules)</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
 :root{ --cell:52px; --gap:6px; }
@@ -11,7 +11,7 @@ body{
   display:flex; justify-content:center; align-items:flex-start; padding:28px;
 }
 #wrap{
-  width:1040px; background:white; border-radius:14px; box-shadow:0 12px 40px rgba(10,20,60,0.12); padding:18px;
+  width:860px; background:white; border-radius:14px; box-shadow:0 12px 40px rgba(10,20,60,0.12); padding:18px;
 }
 .header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
 .header-left{ display:flex; gap:10px; align-items:center; }
@@ -23,9 +23,9 @@ body{
 .controls button.ghost{ background:transparent; color:#0f172a; border:1px solid #e2e8f0; }
 .board-wrap{ display:flex; gap:18px; align-items:flex-start; }
 #board{
-  width: calc(var(--cell)*9 + var(--gap)*8 + 24px);
+  width: calc(var(--cell)*8 + var(--gap)*7 + 24px);
   display:grid;
-  grid-template-columns:repeat(9,var(--cell));
+  grid-template-columns:repeat(8,var(--cell));
   gap:var(--gap);
   background:#e8f1ff; padding:12px; border-radius:12px;
   position:relative;
@@ -42,7 +42,7 @@ body{
     inset 0 6px 8px rgba(255,255,255,0.35),
     0 6px 18px rgba(12,24,60,0.08);
 }
-.hud{ width:360px; display:flex; flex-direction:column; gap:12px; }
+.hud{ width:300px; display:flex; flex-direction:column; gap:12px; }
 .pieces-list{ display:flex; gap:10px; align-items:center; justify-content:center; }
 .piecePreview{
   display:inline-grid; gap:4px; padding:8px; border-radius:10px; cursor:pointer; background:#f8fbff; min-width:82px;
@@ -61,6 +61,23 @@ body{
 .streak{ font-weight:800; color:#b45309; font-size:14px; }
 .footer{ margin-top:12px; display:flex; justify-content:space-between; color:#64748b; font-size:13px; }
 .badge{ font-weight:700; color:#0b1220; background:#fff1cc; padding:6px 8px; border-radius:8px; }
+
+/* ghost for dragging */
+.ghost-piece{
+  position:absolute;
+  pointer-events:none;
+  opacity:0.92;
+  transform:translate(-50%,-50%);
+  z-index:9999;
+  display:grid;
+  gap:4px;
+  padding:6px;
+  background:transparent;
+}
+.ghost-cell{ width:18px; height:18px; border-radius:3px; box-shadow: inset 0 2px 0 rgba(255,255,255,0.6); }
+.combo-badge{
+  position:absolute; pointer-events:none; font-weight:900; color:white; background:rgba(0,0,0,0.75); padding:6px 8px; border-radius:10px; z-index:999;
+}
 </style>
 </head>
 <body>
@@ -69,13 +86,14 @@ body{
       <div class="header-left">
         <div id="score">SCORE: 0</div>
         <div style="width:12px"></div>
-        <div class="bigNote" id="aiLabel">Mode: MANUAL</div>
+        <div class="bigNote" id="aiLabel">AI: READY</div>
         <div style="width:12px"></div>
         <div class="streak" id="streakLabel">Combo: 0</div>
       </div>
       <div class="controls">
-        <button id="manualBtn" class="secondary">MANUAL</button>
+        <button id="startBtn">START GAME</button>
         <button id="aiBtn">AI</button>
+        <button id="manualBtn" class="secondary">MANUAL</button>
         <button id="replayBtn" class="ghost">Replay last AI</button>
       </div>
     </div>
@@ -88,8 +106,11 @@ body{
           <div class="info">Hand pieces (drag to place)</div>
           <div class="badge" id="evalInfo">Beam: 60 | Depth:3</div>
         </div>
+
         <div id="pieces" class="pieces-list"></div>
+
         <div class="info" id="predictionInfo">AI prediction: —</div>
+
         <div style="display:flex;gap:8px;justify-content:center">
           <button id="showPlan" class="secondary">Show plan</button>
           <button id="speedUp" class="secondary">Speed ×1</button>
@@ -98,181 +119,545 @@ body{
     </div>
 
     <div class="footer">
-      <div>Block Blast — Poki Style</div>
-      <div id="author">Make friends think you're a genius ✨</div>
+      <div>Block Blast — Custom</div>
+      <div id="author">Made for you ✨</div>
     </div>
   </div>
 
 <script>
 (() => {
-const size = 9;
-const colorPalette = ["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
-const shapes = [
-  [[1]], [[1,1]], [[1,1,1]], [[1,1,1,1]],
-  [[1],[1]], [[1],[1],[1]], [[1,1],[1,1]],
-  [[1,0],[1,1]], [[1,1,1],[0,1,0]],
-  [[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]] // 5x5
-];
+  // === Config ===
+  const size = 8; // 8x8 board (碁盤)
+  const colorPalette = ["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
 
-let board = [];
-let pieces = [];
-let score = 0;
-let mode = "manual";
-let selected = null;
-let aiBusy = false;
-let lastPlan = null;
-let comboCount = 0;
+  // shape definitions
+  const threeByThree = [
+    [1,1,1],
+    [1,1,1],
+    [1,1,1]
+  ];
+  const twoByThree = [
+    [1,1,1],
+    [1,1,1]
+  ];
 
-// DOM
-const boardEl = document.getElementById('board');
-const piecesEl = document.getElementById('pieces');
-const scoreEl = document.getElementById('score');
-const predictionInfo = document.getElementById('predictionInfo');
-const streakLabel = document.getElementById('streakLabel');
-const aiLabel = document.getElementById('aiLabel');
+  // base shapes (3x3 and 2x3 only appear by controlled rules)
+  const baseShapes = [
+    [[1]], [[1,1]], [[1,1,1]], [[1,1,1,1]],
+    [[1],[1]], [[1],[1],[1]],
+    [[1,1],[1,1]], [[1,0],[1,1]], [[1,1,1],[0,1,0]]
+  ];
 
-// helpers
-const deepCopyGrid = g=>g.map(r=>r.slice());
-const randColor = ()=>colorPalette[Math.floor(Math.random()*colorPalette.length)];
-const countPieceCells = piece=>piece.shape.flat().filter(v=>v).length;
+  // AI params
+  const BEAM_WIDTH = 60;
+  const SEARCH_DEPTH = 3;
+  const TIME_LIMIT_MS = 700;
+  const ALLCLEAR_BONUS = 120000;
 
-// init
-function init(){
-  board = Array(size).fill().map(()=>Array(size).fill(0));
-  score = 0; selected = null; aiBusy = false; lastPlan = null; comboCount=0;
-  generateHand();
-  drawAll();
-}
+  // Poki-style scoring params
+  let comboCount = 0;
+  const LINE_POINT = 10;
+  const SIMULTANEOUS_BONUS_STEP = 20;
+  const COMBO_BASE = 20;
+  const ALLCLEAR_UI_BONUS = 500;
 
-function generateHand(){
-  pieces = [];
-  for(let i=0;i<3;i++){
-    pieces.push({ shape: shapes[Math.floor(Math.random()*shapes.length)], color: randColor() });
-  }
-}
+  // state
+  let board = [];
+  let pieces = [];
+  let score = 0;
+  let mode = "manual";
+  let aiBusy = false;
+  let lastPlan = null;
+  let allClearStreak = 0;
 
-function drawBoard(){
-  boardEl.innerHTML='';
-  for(let y=0;y<size;y++){
-    for(let x=0;x<size;x++){
-      const c=document.createElement('div'); c.className='cell';
-      if(board[y][x]){
-        const b=document.createElement('div'); b.className='piece-block';
-        b.style.background=board[y][x]; c.appendChild(b);
-      }
-      boardEl.appendChild(c);
-    }
-  }
-}
+  // DOM refs
+  const boardEl = document.getElementById('board');
+  const piecesEl = document.getElementById('pieces');
+  const scoreEl = document.getElementById('score');
+  const predictionInfo = document.getElementById('predictionInfo');
+  const streakLabel = document.getElementById('streakLabel');
+  const aiLabel = document.getElementById('aiLabel');
 
-function drawHand(){
-  piecesEl.innerHTML='';
-  pieces.forEach((p,i)=>{
-    const preview = document.createElement('div'); preview.className='piecePreview';
-    if(i===selected) preview.classList.add('selected');
-    const cols=p.shape[0].length;
-    const grid=document.createElement('div'); grid.style.display='grid';
-    grid.style.gridTemplateColumns=`repeat(${cols},18px)`; grid.style.gap='4px';
-    for(let ry=0;ry<p.shape.length;ry++){
-      for(let rx=0;rx<p.shape[0].length;rx++){
-        const m=document.createElement('div'); m.className='mini';
-        if(p.shape[ry][rx]) m.style.background=p.color;
-        grid.appendChild(m);
-      }
-    }
-    const label=document.createElement('div'); label.style.fontSize='12px'; label.style.fontWeight='700';
-    label.innerText=`P${i+1}`;
-    preview.appendChild(grid); preview.appendChild(label);
-    piecesEl.appendChild(preview);
+  // helpers
+  const deepCopyGrid = g => g.map(r => r.slice());
+  const randColor = () => colorPalette[Math.floor(Math.random()*colorPalette.length)];
+  const countPieceCells = p => p.shape.flat().filter(v=>v).length;
+  const isThreeByThree = p => Array.isArray(p.shape) && p.shape.length===3 && p.shape[0].length===3 && p.shape.flat().every(v=>v===1);
+  const shapesEqual = (a,b) => JSON.stringify(a)===JSON.stringify(b);
 
-    // drag
-    preview.addEventListener('mousedown', (e)=>{
-      if(mode!=='manual') return;
-      const div = document.createElement('div');
-      div.className='piece-block';
-      div.style.background=p.color;
-      div.style.position='absolute';
-      div.style.left=e.clientX+'px';
-      div.style.top=e.clientY+'px';
-      div.style.width='52px';
-      div.style.height='52px';
-      div.style.opacity='0.6';
-      div.style.zIndex='999';
-      document.body.appendChild(div);
-      dragging={pieceIndex:i, div, offsetX:e.offsetX, offsetY:e.offsetY, piece:p};
-    });
-  });
-}
-
-let dragging = null;
-document.addEventListener('mousemove',(e)=>{
-  if(!dragging) return;
-  const div=dragging.div;
-  div.style.left=e.clientX-dragging.offsetX+'px';
-  div.style.top=e.clientY-dragging.offsetY+'px';
-});
-document.addEventListener('mouseup',(e)=>{
-  if(!dragging) return;
-  const x = Math.floor((e.clientX - boardEl.getBoundingClientRect().left)/(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell')) + 6));
-  const y = Math.floor((e.clientY - boardEl.getBoundingClientRect().top)/(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell')) + 6));
-  if(canPlace(dragging.piece.shape,y,x,board)){
-    applyPlaceAndScore(dragging.piece,y,x);
-    pieces.splice(dragging.pieceIndex,1);
-    if(pieces.length===0) generateHand();
+  // init
+  function init(){
+    board = Array(size).fill().map(()=>Array(size).fill(0));
+    score = 0; aiBusy = false; lastPlan = null; comboCount = 0; allClearStreak = 0;
+    generateHand();
     drawAll();
   }
-  dragging.div.remove(); dragging=null;
-});
 
-function canPlace(shape,y,x,grid){
-  for(let dy=0;dy<shape.length;dy++){
-    for(let dx=0;dx<shape[0].length;dx++){
-      if(shape[dy][dx]){
-        if(y+dy>=size||x+dx>=size) return false;
-        if(grid[y+dy][x+dx]) return false;
+  // generateHand with rules:
+  // - generate up to 3 pieces sequentially
+  // - if any 3x3 exists when generating next, 50% chance to add another 3x3
+  // - if two 3x3 exist, then for remaining slot: 70% chance to produce a 2x3 (vertical 2x3) block
+  function generateHand(){
+    pieces = [];
+    // We will fill pieces.length until 3
+    while(pieces.length < 3){
+      const count3x3 = pieces.filter(isThreeByThree).length;
+
+      if(count3x3 === 0){
+        // no 3x3 yet -> pick randomly from baseShapes with a small chance to be 3x3 (so 3x3 can appear randomly)
+        // Let's set a modest probability for a 3x3 to appear randomly e.g., 12%
+        if(Math.random() < 0.12){
+          pieces.push({ shape: threeByThree, color: randColor() });
+        } else {
+          const s = baseShapes[Math.floor(Math.random()*baseShapes.length)];
+          pieces.push({ shape: s, color: randColor() });
+        }
+
+      } else if(count3x3 === 1){
+        // one 3x3 present -> 50% chance to add another 3x3 now
+        if(Math.random() < 0.5){
+          pieces.push({ shape: threeByThree, color: randColor() });
+        } else {
+          // otherwise random non-3x3
+          const s = baseShapes[Math.floor(Math.random()*baseShapes.length)];
+          pieces.push({ shape: s, color: randColor() });
+        }
+
+      } else { // count3x3 >= 2
+        // If two 3x3 are present, remaining slot: 70% chance to be vertical 2x3, else random non-3x3
+        if(Math.random() < 0.7){
+          pieces.push({ shape: twoByThree, color: randColor() });
+        } else {
+          const s = baseShapes[Math.floor(Math.random()*baseShapes.length)];
+          pieces.push({ shape: s, color: randColor() });
+        }
       }
     }
   }
-  return true;
-}
 
-// ============================
-// Poki版スコア計算 + コンボ
-// ============================
-function applyPlaceAndScore(piece,y,x){
-  for(let dy=0;dy<piece.shape.length;dy++){
-    for(let dx=0;dx<piece.shape[0].length;dx++){
-      if(piece.shape[dy][dx]) board[y+dy][x+dx]=piece.color;
+  // draw board cells
+  function drawBoard(){
+    boardEl.innerHTML = '';
+    for(let y=0;y<size;y++){
+      for(let x=0;x<size;x++){
+        const c = document.createElement('div'); c.className = 'cell';
+        if(board[y][x]){
+          const b = document.createElement('div'); b.className = 'piece-block';
+          b.style.background = board[y][x];
+          c.appendChild(b);
+        }
+        boardEl.appendChild(c);
+      }
     }
   }
 
-  // ライン消去
-  let lines=0;
-  for(let r=0;r<size;r++){
-    if(board[r].every(v=>v)){ lines++; board[r].fill(0); }
+  // draw hand and attach drag handlers
+  function drawHand(){
+    piecesEl.innerHTML = '';
+    pieces.forEach((p,i)=>{
+      const preview = document.createElement('div'); preview.className = 'piecePreview';
+      const cols = p.shape[0].length;
+      const grid = document.createElement('div'); grid.style.display='grid';
+      grid.style.gridTemplateColumns = `repeat(${cols},18px)`; grid.style.gap='4px';
+      for(let ry=0; ry<p.shape.length; ry++){
+        for(let rx=0; rx<p.shape[0].length; rx++){
+          const m = document.createElement('div'); m.className = 'mini';
+          if(p.shape[ry][rx]) m.style.background = p.color;
+          grid.appendChild(m);
+        }
+      }
+      const label = document.createElement('div'); label.style.fontSize='12px'; label.style.fontWeight='700'; label.innerText = `P${i+1}`;
+      preview.appendChild(grid); preview.appendChild(label);
+      piecesEl.appendChild(preview);
+
+      // drag start (mouse + touch)
+      preview.addEventListener('mousedown', (e)=>{ if(mode!=='manual' || aiBusy) return; startDragPiece(i,p,e); });
+      preview.addEventListener('touchstart', (e)=>{ if(mode!=='manual' || aiBusy) return; startDragPiece(i,p,e.touches[0]); e.preventDefault(); });
+    });
   }
-  for(let c=0;c<size;c++){
-    if(board.map(row=>row[c]).every(v=>v)){ lines++; for(let r=0;r<size;r++) board[r][c]=0; }
+
+  // dragging helpers
+  let dragging = null;
+  function startDragPiece(index, piece, ev){
+    // create ghost visual
+    const ghost = document.createElement('div');
+    ghost.className = 'ghost-piece';
+    ghost.style.left = ev.clientX + 'px';
+    ghost.style.top  = ev.clientY + 'px';
+    // layout same as shape
+    for(let ry=0; ry<piece.shape.length; ry++){
+      for(let rx=0; rx<piece.shape[0].length; rx++){
+        if(piece.shape[ry][rx]){
+          const gc = document.createElement('div');
+          gc.className = 'ghost-cell';
+          gc.style.background = piece.color;
+          ghost.appendChild(gc);
+        } else {
+          const spacer = document.createElement('div');
+          spacer.style.width='18px'; spacer.style.height='18px'; spacer.style.visibility='hidden';
+          ghost.appendChild(spacer);
+        }
+      }
+    }
+    document.body.appendChild(ghost);
+    dragging = { pieceIndex: index, piece, ghost, offsetX: ev.offsetX || 0, offsetY: ev.offsetY || 0 };
+
+    function onMove(e){
+      const client = e.touches ? e.touches[0] : e;
+      if(!dragging) return;
+      dragging.ghost.style.left = (client.clientX) + 'px';
+      dragging.ghost.style.top  = (client.clientY) + 'px';
+    }
+    function onUp(e){
+      if(!dragging) return;
+      const client = e.changedTouches ? e.changedTouches[0] : e;
+      const rect = boardEl.getBoundingClientRect();
+      const cellW = rect.width / size;
+      const cellH = rect.height / size;
+      const x = Math.floor((client.clientX - rect.left) / cellW);
+      const y = Math.floor((client.clientY - rect.top) / cellH);
+      if(canPlace(dragging.piece.shape, y, x, board)){
+        placeAndScoreAtomic(dragging.piece, y, x);
+        // remove correct piece from hand: use pieceIndex if still valid
+        if(dragging.pieceIndex >= 0 && dragging.pieceIndex < pieces.length){
+          pieces.splice(dragging.pieceIndex, 1);
+        } else {
+          const idx = pieces.findIndex(pp => shapesEqual(pp.shape, dragging.piece.shape) && pp.color === dragging.piece.color);
+          if(idx !== -1) pieces.splice(idx,1);
+        }
+        if(pieces.length === 0) generateHand();
+        drawAll();
+      }
+      dragging.ghost.remove();
+      dragging = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, {passive:false});
+    window.addEventListener('touchend', onUp);
   }
 
-  let gained=countPieceCells(piece);
-  if(lines>0){
-    gained+=lines*10;
-    if(lines>=2) gained+=(lines-1)*20;
-    comboCount++; gained+=20+(comboCount-1)*10;
-  } else comboCount=0;
+  function drawAll(){
+    drawBoard();
+    drawHand();
+    scoreEl.innerText = `SCORE: ${score}`;
+    streakLabel.innerText = `Combo: ${comboCount}`;
+    predictionInfo.innerText = lastPlan ? `AI plan: ${lastPlan.moves.length} moves — est ${Math.round(lastPlan.estimatedScore)}` : 'AI prediction: —';
+  }
 
-  const remaining=board.flat().filter(Boolean).length;
-  if(remaining===0) gained+=500;
+  /* ---------- placement simulation & utilities ---------- */
+  function canPlace(shape, y, x, grid){
+    for(let dy=0; dy<shape.length; dy++){
+      for(let dx=0; dx<shape[0].length; dx++){
+        if(shape[dy][dx]){
+          if(y+dy < 0 || x+dx < 0 || y+dy >= size || x+dx >= size) return false;
+          if(grid[y+dy][x+dx]) return false;
+        }
+      }
+    }
+    return true;
+  }
 
-  score+=gained;
-}
+  function simulatePlaceNoColor(grid, piece, y, x){
+    const g = deepCopyGrid(grid);
+    for(let dy=0; dy<piece.shape.length; dy++){
+      for(let dx=0; dx<piece.shape[0].length; dx++){
+        if(piece.shape[dy][dx]) g[y+dy][x+dx] = 1;
+      }
+    }
+    // clear rows
+    let lines = 0;
+    for(let r=0;r<size;r++){
+      if(g[r].every(v=>v)){ lines++; g[r].fill(0); }
+    }
+    // clear cols
+    for(let c=0;c<size;c++){
+      if(g.map(row=>row[c]).every(v=>v)){ lines++; for(let r=0;r<size;r++) g[r][c]=0; }
+    }
+    return { grid: g, lines };
+  }
 
-function drawAll(){ drawBoard(); drawHand(); scoreEl.innerText=`SCORE: ${score}`; streakLabel.innerText=`Combo: ${comboCount}`; }
+  // atomic place + scoring using pre-simulation for line count
+  function placeAndScoreAtomic(piece, y, x){
+    // occupancy before placement
+    const occBefore = board.map(r=>r.map(v=>v?1:0));
+    const sim = simulatePlaceNoColor(occBefore, piece, y, x);
+    const lines = sim.lines;
 
-document.getElementById('manualBtn').addEventListener('click',()=>{mode='manual'; aiLabel.innerText='Mode: MANUAL';});
-document.getElementById('aiBtn').addEventListener('click',()=>{mode='ai'; aiLabel.innerText='Mode: AI';});
-init();
+    // scoring base
+    let gained = countPieceCells(piece);
+    if(lines > 0){
+      gained += lines * LINE_POINT;
+      if(lines >= 2) gained += (lines - 1) * SIMULTANEOUS_BONUS_STEP;
+      // combo
+      comboCount++;
+      gained += COMBO_BASE + (comboCount - 1) * 10;
+    } else {
+      comboCount = 0;
+    }
+
+    // apply colored placement then clear same as simulate
+    for(let dy=0; dy<piece.shape.length; dy++){
+      for(let dx=0; dx<piece.shape[0].length; dx++){
+        if(piece.shape[dy][dx]) board[y+dy][x+dx] = piece.color;
+      }
+    }
+    // clear rows
+    for(let r=0;r<size;r++){
+      if(board[r].every(v=>v)){ board[r].fill(0); }
+    }
+    // clear cols
+    for(let c=0;c<size;c++){
+      if(board.map(row=>row[c]).every(v=>v)){ for(let r=0;r<size;r++) board[r][c] = 0; }
+    }
+
+    // all-clear check
+    const remaining = board.flat().filter(Boolean).length;
+    if(remaining === 0){
+      gained += ALLCLEAR_UI_BONUS;
+      allClearStreak++;
+      flashAllClear();
+    } else {
+      allClearStreak = 0;
+    }
+
+    score += Math.floor(gained);
+    return { lines, remaining };
+  }
+
+  function flashAllClear(){
+    boardEl.style.boxShadow = '0 0 40px rgba(255,200,60,0.6)';
+    setTimeout(()=> boardEl.style.boxShadow = '', 520);
+  }
+
+  /* ---------- AI: evaluation, beam search ---------- */
+  function evaluateOccupancy(occGrid, totalLinesSoFar){
+    let filled = 0;
+    let holes = 0;
+    let heights = Array(size).fill(0);
+    for(let x=0;x<size;x++){
+      for(let y=0;y<size;y++){
+        if(occGrid[y][x]) { filled++; heights[x] = size - y; break; }
+      }
+    }
+    for(let y=0;y<size;y++){
+      for(let x=0;x<size;x++){
+        if(!occGrid[y][x]){
+          for(let k=y+1;k<size;k++){
+            if(occGrid[k][x]) { holes++; break; }
+          }
+        }
+      }
+    }
+    const aggHeight = heights.reduce((a,b)=>a+b,0);
+    let v = filled + holes*6 + aggHeight*0.9 - totalLinesSoFar * 220;
+    return v;
+  }
+
+  function enumeratePlacements(piece, occGrid){
+    const list = [];
+    for(let y=0;y<size;y++){
+      for(let x=0;x<size;x++){
+        if(canPlace(piece.shape,y,x,occGrid)) list.push({ y, x });
+      }
+    }
+    return list;
+  }
+
+  function computeBestPlan(currentBoard, handPieces){
+    const startTime = Date.now();
+    const occ = currentBoard.map(r=>r.map(v=>v?1:0));
+    const perms = [
+      [0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]
+    ].filter(p => p.every(i => i < handPieces.length));
+    let globalBest = null;
+    for(const perm of perms){
+      let beam = [{ occ: deepCopyGrid(occ), moves: [], totalLines: 0, est: 1e9 }];
+      for(let depth=0; depth<Math.min(SEARCH_DEPTH, perm.length); depth++){
+        const idx = perm[depth];
+        const piece = handPieces[idx];
+        const nextBeam = [];
+        for(const state of beam){
+          const placements = enumeratePlacements(piece, state.occ);
+          if(placements.length === 0) continue;
+          for(const pos of placements){
+            const sim = simulatePlaceNoColor(state.occ, piece, pos.y, pos.x);
+            const newTotalLines = state.totalLines + sim.lines;
+            const est = evaluateOccupancy(sim.grid, newTotalLines);
+            nextBeam.push({
+              occ: sim.grid,
+              moves: state.moves.concat([{ idx, y: pos.y, x: pos.x, lines: sim.lines }]),
+              totalLines: newTotalLines,
+              est
+            });
+            if(Date.now() - startTime > TIME_LIMIT_MS) break;
+          }
+          if(Date.now() - startTime > TIME_LIMIT_MS) break;
+        }
+        nextBeam.sort((a,b)=>a.est - b.est);
+        beam = nextBeam.slice(0, BEAM_WIDTH);
+        if(beam.length === 0) break;
+        if(Date.now() - startTime > TIME_LIMIT_MS) break;
+      }
+      for(const st of beam){
+        const occCount = st.occ.flat().reduce((a,b)=>a+b,0);
+        let value = st.totalLines * 20000 - occCount*200 - st.est*10;
+        if(occCount === 0){
+          value += ALLCLEAR_BONUS + (allClearStreak * 30000);
+        }
+        if(!globalBest || value > globalBest.value){
+          globalBest = { value, plan: st.moves, occCount, estimatedScore: value };
+        }
+        if(Date.now() - startTime > TIME_LIMIT_MS) break;
+      }
+      if(Date.now() - startTime > TIME_LIMIT_MS) break;
+    }
+    return globalBest;
+  }
+
+  /* ---------- AI execution and UI preview ---------- */
+  const previewOverlays = [];
+  function clearPreviewOverlays(){ while(previewOverlays.length){ const e = previewOverlays.pop(); if(e.parentNode) e.parentNode.removeChild(e); } }
+
+  function showPlanPreview(plan){
+    clearPreviewOverlays();
+    if(!plan || !plan.moves) return;
+    predictionInfo.innerText = `AI plan: ${plan.moves.length} placements — est ${Math.round(plan.estimatedScore)}`;
+    for(const mv of plan.moves){
+      const overlay = document.createElement('div');
+      overlay.className = 'previewCell previewOverlay';
+      overlay.style.background = 'rgba(59,130,246,0.12)';
+      overlay.style.border = '2px dashed rgba(59,130,246,0.5)';
+      const idx = mv.y * size + mv.x;
+      const targetCell = boardEl.children[idx];
+      if(targetCell){
+        const parentRect = boardEl.getBoundingClientRect();
+        const rect = targetCell.getBoundingClientRect();
+        overlay.style.left = `${rect.left - parentRect.left + rect.width/2}px`;
+        overlay.style.top  = `${rect.top  - parentRect.top  + rect.height/2}px`;
+        overlay.style.position = 'absolute';
+        overlay.style.transform = 'translate(-50%,-50%)';
+        boardEl.appendChild(overlay);
+        previewOverlays.push(overlay);
+      }
+    }
+    setTimeout(clearPreviewOverlays, 1200);
+  }
+
+  function highlightPlacement(y,x,shape,color){
+    const cells=[];
+    for(let dy=0; dy<shape.length; dy++){
+      for(let dx=0; dx<shape[0].length; dx++){
+        if(shape[dy][dx]){
+          const idx = (y+dy)*size + (x+dx);
+          const target = boardEl.children[idx];
+          if(target){
+            const h = document.createElement('div');
+            h.style.position='absolute';
+            h.style.left = target.offsetLeft + 'px';
+            h.style.top  = target.offsetTop + 'px';
+            h.style.width = target.clientWidth + 'px';
+            h.style.height= target.clientHeight + 'px';
+            h.style.background = color;
+            h.style.opacity = 0.28;
+            h.style.borderRadius = '12px';
+            h.style.transition = 'opacity .35s ease';
+            boardEl.appendChild(h);
+            cells.push(h);
+            setTimeout(()=>{ h.style.opacity = 0; setTimeout(()=>h.remove(),420); },420);
+          }
+        }
+      }
+    }
+  }
+
+  function aiThinkAndPlay(){
+    if(mode !== 'ai' || aiBusy) return;
+    aiBusy = true;
+    aiLabel.innerText = 'AI: THINKING...';
+    setTimeout(()=>{
+      const planObj = computeBestPlan(board, pieces);
+      if(!planObj || !planObj.plan || planObj.plan.length === 0){
+        aiLabel.innerText = 'AI: GAME OVER';
+        aiBusy = false;
+        return;
+      }
+      lastPlan = { moves: planObj.plan.map(m=>({ idx: m.idx, y: m.y, x: m.x, lines: m.lines })), estimatedScore: planObj.value };
+      showPlanPreview(lastPlan);
+      let i = 0;
+      function step(){
+        if(i >= lastPlan.moves.length){
+          generateHand();
+          drawAll();
+          aiBusy = false;
+          aiLabel.innerText = 'AI: READY';
+          setTimeout(()=>{ if(mode === 'ai') aiThinkAndPlay(); }, 500);
+          return;
+        }
+        const move = lastPlan.moves[i];
+        let usedIndex = -1;
+        for(let k=0;k<pieces.length;k++){ if(canPlace(pieces[k].shape, move.y, move.x, board)){ usedIndex = k; break; } }
+        if(usedIndex === -1){
+          for(let k=0;k<pieces.length;k++){
+            const placements = enumeratePlacements(pieces[k], board);
+            if(placements.length){ usedIndex = k; move.y = placements[0].y; move.x = placements[0].x; break; }
+          }
+        }
+        if(usedIndex === -1){
+          aiBusy = false; aiLabel.innerText = 'AI: stuck';
+          return;
+        }
+        highlightPlacement(move.y, move.x, pieces[usedIndex].shape, pieces[usedIndex].color);
+        setTimeout(()=>{
+          placeAndScoreAtomic(pieces[usedIndex], move.y, move.x);
+          pieces.splice(usedIndex,1);
+          if(pieces.length === 0) generateHand();
+          drawAll();
+          i++;
+          setTimeout(step, 700);
+        }, 700);
+      }
+      step();
+    }, 200);
+  }
+
+  // replay
+  document.getElementById('replayBtn').addEventListener('click', ()=>{
+    if(!lastPlan){ alert('No AI plan to replay yet.'); return; }
+    clearPreviewOverlays();
+    lastPlan.moves.forEach((m,i)=>{
+      const idx = m.y * size + m.x;
+      const target = boardEl.children[idx];
+      if(!target) return;
+      const badge = document.createElement('div'); badge.className = 'combo-badge';
+      const parentRect = boardEl.getBoundingClientRect();
+      const rect = target.getBoundingClientRect();
+      badge.style.left = `${rect.left - parentRect.left + rect.width/2}px`;
+      badge.style.top  = `${rect.top  - parentRect.top  + rect.height/2}px`;
+      badge.style.transform = 'translate(-50%,-50%)';
+      badge.innerText = (i+1);
+      boardEl.appendChild(badge);
+      setTimeout(()=>{ badge.remove(); }, 900 + i*120);
+    });
+  });
+
+  // controls
+  document.getElementById('startBtn').addEventListener('click', ()=>{ init(); aiLabel.innerText = 'AI: READY'; });
+  document.getElementById('aiBtn').addEventListener('click', ()=>{ mode = 'ai'; aiLabel.innerText = 'AI: THINKING...'; if(!aiBusy) aiThinkAndPlay(); });
+  document.getElementById('manualBtn').addEventListener('click', ()=>{ mode='manual'; aiLabel.innerText='AI: PAUSED'; aiBusy=false; });
+  document.getElementById('showPlan').addEventListener('click', ()=>{ if(lastPlan) showPlanPreview(lastPlan); });
+  document.getElementById('speedUp').addEventListener('click', ()=>{ alert('Speed toggle not implemented.'); });
+
+  // debug
+  window._bb = { board, pieces, computeBestPlan, placeAndScoreAtomic, drawAll };
+
+  // start
+  init();
+
 })();
 </script>
 </body>
