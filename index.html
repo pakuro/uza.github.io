@@ -1,268 +1,647 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Block Blast — 見やすい完全版</title>
+<meta charset="utf-8" />
+<title>Block Blast — GOD AI Showcase</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
+:root{ --cell:52px; --gap:6px; }
 body{
-  margin:0;
-  background:#eef4fb;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-  font-family:sans-serif;
+  margin:0; background:#eef6ff; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "メイリオ", sans-serif;
+  display:flex; justify-content:center; align-items:flex-start; padding:28px;
 }
-#game{
-  background:white;
-  padding:20px;
-  border-radius:15px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.15);
+#wrap{
+  width:880px; background:white; border-radius:14px; box-shadow:0 12px 40px rgba(10,20,60,0.12); padding:18px;
 }
-#score{
-  font-size:28px;
-  font-weight:bold;
-  margin-bottom:10px;
+.header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+.header-left{ display:flex; gap:10px; align-items:center; }
+#score{ font-weight:800; font-size:22px; color:#0f172a; }
+.controls button{
+  background:#2b8af6; color:white; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700;
 }
+.controls button.secondary{ background:#94a3b8; }
+.controls button.ghost{ background:transparent; color:#0f172a; border:1px solid #e2e8f0; }
+.board-wrap{ display:flex; gap:18px; align-items:flex-start; }
 #board{
+  width: calc(var(--cell)*8 + var(--gap)*7 + 24px);
   display:grid;
-  grid-template-columns:repeat(8,50px);
-  gap:6px;
-  background:#dce6f7;
-  padding:10px;
-  border-radius:10px;
+  grid-template-columns:repeat(8,var(--cell));
+  gap:var(--gap);
+  background:#e8f1ff; padding:12px; border-radius:12px;
 }
 .cell{
-  width:50px;
-  height:50px;
-  background:#f8fbff;
-  border-radius:10px;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  cursor:pointer;
+  width:var(--cell); height:var(--cell); background:#fbfdff; border-radius:12px; position:relative;
+  display:flex; justify-content:center; align-items:center; cursor:pointer; user-select:none;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.8);
 }
-.block{
-  width:42px;
-  height:42px;
-  border-radius:8px;
+.piece-block{
+  width:calc(100% - 8px); height:calc(100% - 8px); border-radius:10px;
   box-shadow:
-    inset 0 -4px 6px rgba(0,0,0,0.2),
-    inset 0 4px 6px rgba(255,255,255,0.4);
+    inset 0 -6px 10px rgba(0,0,0,0.18),
+    inset 0 6px 8px rgba(255,255,255,0.35),
+    0 6px 18px rgba(12,24,60,0.08);
 }
-#pieces{
-  margin-top:15px;
-  display:flex;
-  gap:20px;
+.hud{ width:320px; display:flex; flex-direction:column; gap:12px; }
+.pieces-list{ display:flex; gap:10px; align-items:center; justify-content:center; }
+.piecePreview{
+  display:inline-grid; gap:4px; padding:8px; border-radius:10px; cursor:pointer; background:#f8fbff; min-width:82px;
+  align-items:center; justify-items:center;
 }
-.piece{
-  cursor:pointer;
-  padding:5px;
-  border-radius:8px;
+.piecePreview.selected{ outline:3px solid rgba(255,159,28,0.25); }
+.mini{ width:18px; height:18px; border-radius:4px; box-shadow: inset 0 2px 0 rgba(255,255,255,0.6); }
+.info{ font-size:13px; color:#475569; }
+.previewOverlay{ position:absolute; pointer-events:none; transition:all .18s; }
+.previewCell{
+  width:var(--cell); height:var(--cell); border-radius:12px; position:absolute; transform:translate(-50%,-50%); opacity:.9;
+  box-shadow:0 8px 20px rgba(8,20,60,0.12);
+  border:3px solid rgba(255,255,255,0.12);
 }
-.piece.selected{
-  outline:3px solid orange;
-}
-.mini{
-  width:18px;
-  height:18px;
-  background:#dce6f7;
-  border-radius:4px;
-}
+.bigNote{ font-weight:800; color:#0f172a; font-size:16px; }
+.streak{ font-weight:800; color:#b45309; font-size:14px; }
+.footer{ margin-top:12px; display:flex; justify-content:space-between; color:#64748b; font-size:13px; }
+.badge{ font-weight:700; color:#0b1220; background:#fff1cc; padding:6px 8px; border-radius:8px; }
 </style>
 </head>
 <body>
+  <div id="wrap">
+    <div class="header">
+      <div class="header-left">
+        <div id="score">SCORE: 0</div>
+        <div style="width:12px"></div>
+        <div class="bigNote" id="aiLabel">AI: GOD Mode</div>
+        <div style="width:12px"></div>
+        <div class="streak" id="streakLabel">All-clear streak: 0</div>
+      </div>
+      <div class="controls">
+        <button id="aiBtn">AI</button>
+        <button id="manualBtn" class="secondary">MANUAL</button>
+        <button id="replayBtn" class="ghost">Replay last AI</button>
+      </div>
+    </div>
 
-<div id="game">
-  <div id="score">0</div>
-  <button id="aiBtn">AI</button>
-  <button id="manualBtn">MANUAL</button>
-  <div id="board"></div>
-  <div id="pieces"></div>
-</div>
+    <div class="board-wrap">
+      <div id="board"></div>
+
+      <div class="hud">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="info">Hand pieces (click to select)</div>
+          <div class="badge" id="evalInfo">Beam: 60 | Depth:3</div>
+        </div>
+
+        <div id="pieces" class="pieces-list"></div>
+
+        <div class="info" id="predictionInfo">AI prediction: —</div>
+
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button id="showPlan" class="secondary">Show plan</button>
+          <button id="speedUp" class="secondary">Speed ×1</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Block Blast — GOD AI Showcase</div>
+      <div id="author">Make friends think you're a genius ✨</div>
+    </div>
+  </div>
 
 <script>
-document.addEventListener("DOMContentLoaded",()=>{
+/* =========================
+   超強AI付き Block Blast
+   - Beam search + permutation
+   - 強力な評価関数（All-clear重視）
+   - 予測プレビュー・リプレイ
+   ========================= */
 
-const size=8;
-let board=[];
-let pieces=[];
-let score=0;
-let mode="ai";
-let selected=null;
-let aiBusy=false;
+(() => {
+  const size = 8;
+  const colorPalette = ["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
+  const shapes = [
+    [[1]], [[1,1]], [[1,1,1]], [[1,1,1,1]],
+    [[1],[1]], [[1],[1],[1]],
+    [[1,1],[1,1]],
+    [[1,0],[1,1]],
+    [[1,1,1],[0,1,0]]
+  ];
 
-// 🔹 固定で見やすい色配列
-const colors=["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
+  // AIパラメータ（必要ならここをいじって）
+  const BEAM_WIDTH = 60;    // 候補キープ数（大きいほど賢くなるが重い）
+  const SEARCH_DEPTH = 3;   // 手持ちの枚数を超えない（通常3）
+  const TIME_LIMIT_MS = 700; // 1ターンの探索タイム上限（ms）
+  const ALLCLEAR_BONUS = 120000; // 全消しボーナス（非常に大きくする）
 
-const shapes=[
-[[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
-[[1],[1]],[[1],[1],[1]],
-[[1,1],[1,1]],
-[[1,0],[1,1]],
-[[1,1,1],[0,1,0]]
-];
+  // 状態
+  let board = [];
+  let pieces = [];
+  let score = 0;
+  let mode = "ai";
+  let selected = null;
+  let aiBusy = false;
+  let lastPlan = null; // リプレイ用
+  let allClearStreak = 0;
 
-function randColor(){
-  return colors[Math.floor(Math.random()*colors.length)];
-}
+  // DOM refs
+  const boardEl = document.getElementById('board');
+  const piecesEl = document.getElementById('pieces');
+  const scoreEl = document.getElementById('score');
+  const predictionInfo = document.getElementById('predictionInfo');
+  const streakLabel = document.getElementById('streakLabel');
+  const aiLabel = document.getElementById('aiLabel');
 
-function init(){
-  board=Array(size).fill().map(()=>Array(size).fill(0));
-  score=0;
-  generate();
-  draw();
-  aiTurn();
-}
+  // 初期化
+  function randColor(){ return colorPalette[Math.floor(Math.random()*colorPalette.length)]; }
+  function deepCopyGrid(g){ return g.map(r=>r.slice()); }
 
-function generate(){
-  pieces=[];
-  for(let i=0;i<3;i++){
-    pieces.push({
-      shape:shapes[Math.floor(Math.random()*shapes.length)],
-      color:randColor()
+  function init(){
+    board = Array(size).fill().map(()=>Array(size).fill(0));
+    score = 0; selected = null; aiBusy = false; lastPlan = null; allClearStreak = 0;
+    generateHand();
+    drawAll();
+    setTimeout(()=>aiThinkAndPlay(), 120); // 少しだけ遅らせてDOM安定
+  }
+
+  function generateHand(){
+    pieces = [];
+    for(let i=0;i<3;i++) pieces.push({ shape: shapes[Math.floor(Math.random()*shapes.length)], color: randColor() });
+  }
+
+  /* ---------- 描画 ---------- */
+  function drawBoard(){
+    boardEl.innerHTML = '';
+    for(let y=0;y<size;y++){
+      for(let x=0;x<size;x++){
+        const c = document.createElement('div'); c.className = 'cell';
+        if(board[y][x]){
+          const b = document.createElement('div'); b.className = 'piece-block';
+          b.style.background = board[y][x];
+          c.appendChild(b);
+        }
+        // manual mode click
+        c.addEventListener('click', ()=> {
+          if(mode === 'manual' && selected !== null && !aiBusy){
+            placeFromHand(selected, y, x);
+          }
+        });
+        boardEl.appendChild(c);
+      }
+    }
+  }
+
+  function drawHand(){
+    piecesEl.innerHTML = '';
+    pieces.forEach((p,i)=>{
+      const preview = document.createElement('div');
+      preview.className = 'piecePreview';
+      if(i===selected) preview.classList.add('selected');
+      // grid layout for shape
+      const cols = p.shape[0].length;
+      const grid = document.createElement('div');
+      grid.style.display = 'grid';
+      grid.style.gridTemplateColumns = `repeat(${cols}, 18px)`;
+      grid.style.gap = '4px';
+      for(let ry=0; ry<p.shape.length; ry++){
+        for(let rx=0; rx<p.shape[0].length; rx++){
+          const m = document.createElement('div'); m.className = 'mini';
+          if(p.shape[ry][rx]){ m.style.background = p.color; }
+          grid.appendChild(m);
+        }
+      }
+      const label = document.createElement('div'); label.style.fontSize = '12px'; label.style.fontWeight='700'; label.innerText = `P${i+1}`;
+      preview.appendChild(grid);
+      preview.appendChild(label);
+      preview.addEventListener('click', ()=> {
+        if(mode==='manual') {
+          selected = i; drawAll();
+        }
+      });
+      piecesEl.appendChild(preview);
     });
   }
-}
 
-function draw(){
-  drawBoard();
-  drawPieces();
-  document.getElementById("score").innerText=score;
-}
+  function drawAll(){
+    drawBoard();
+    drawHand();
+    scoreEl.innerText = `SCORE: ${score}`;
+    streakLabel.innerText = `All-clear streak: ${allClearStreak}`;
+    predictionInfo.innerText = lastPlan ? `AI predicts ${lastPlan.moves.length} placements (score est ${lastPlan.estimatedScore})` : 'AI prediction: —';
+  }
 
-function drawBoard(){
-  const b=document.getElementById("board");
-  b.innerHTML="";
-  for(let y=0;y<size;y++){
+  /* ---------- 盤面ユーティリティ ---------- */
+  function canPlace(shape, y, x, grid){
+    for(let dy=0; dy<shape.length; dy++){
+      for(let dx=0; dx<shape[0].length; dx++){
+        if(shape[dy][dx]){
+          if(y+dy >= size || x+dx >= size) return false;
+          if(grid[y+dy][x+dx]) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function simulatePlaceNoColor(grid, piece, y, x){
+    // grid は occupancy (0/1) で渡すこと
+    const g = deepCopyGrid(grid);
+    for(let dy=0; dy<piece.shape.length; dy++){
+      for(let dx=0; dx<piece.shape[0].length; dx++){
+        if(piece.shape[dy][dx]) g[y+dy][x+dx] = 1;
+      }
+    }
+    // 消去
+    let lines = 0;
+    // 横
+    for(let r=0;r<size;r++){
+      if(g[r].every(v=>v)){
+        lines++; g[r].fill(0);
+      }
+    }
+    // 縦
+    for(let c=0;c<size;c++){
+      if(g.map(row=>row[c]).every(v=>v)){
+        lines++;
+        for(let r=0;r<size;r++) g[r][c]=0;
+      }
+    }
+    return { grid:g, lines };
+  }
+
+  function applyPlaceToBoard(piece, y, x){
+    // 実盤面に色を置く（board は色か0）
+    if(!canPlace(piece.shape,y,x,board)) return null;
+    for(let dy=0; dy<piece.shape.length; dy++){
+      for(let dx=0; dx<piece.shape[0].length; dx++){
+        if(piece.shape[dy][dx]) board[y+dy][x+dx] = piece.color;
+      }
+    }
+    // line clear
+    let lines=0;
+    for(let r=0;r<size;r++){
+      if(board[r].every(v=>v)){ lines++; board[r].fill(0); }
+    }
+    for(let c=0;c<size;c++){
+      if(board.map(row=>row[c]).every(v=>v)){ lines++; for(let r=0;r<size;r++) board[r][c]=0; }
+    }
+    return { lines };
+  }
+
+  /* ---------- 評価関数（AIの要） ---------- */
+  function evaluateOccupancy(occGrid, totalLinesSoFar){
+    // occGridは0/1
+    // 特徴量
+    let filled = 0;
+    let holes = 0;
+    let heights = Array(size).fill(0);
     for(let x=0;x<size;x++){
-      const c=document.createElement("div");
-      c.className="cell";
-      if(board[y][x]){
-        const inner=document.createElement("div");
-        inner.className="block";
-        inner.style.background=board[y][x];
-        c.appendChild(inner);
-      }
-      c.onclick=()=>{
-        if(mode==="manual" && selected!==null){
-          place(selected,y,x);
-        }
-      };
-      b.appendChild(c);
-    }
-  }
-}
-
-function drawPieces(){
-  const p=document.getElementById("pieces");
-  p.innerHTML="";
-  pieces.forEach((piece,i)=>{
-    const wrapper=document.createElement("div");
-    wrapper.className="piece";
-    if(i===selected) wrapper.classList.add("selected");
-    wrapper.onclick=()=>{
-      if(mode==="manual"){
-        selected=i;
-        draw();
-      }
-    };
-
-    const grid=document.createElement("div");
-    grid.style.display="grid";
-    grid.style.gridTemplateColumns=`repeat(${piece.shape[0].length},18px)`;
-    grid.style.gap="2px";
-
-    for(let y=0;y<piece.shape.length;y++){
-      for(let x=0;x<piece.shape[0].length;x++){
-        const m=document.createElement("div");
-        m.className="mini";
-        if(piece.shape[y][x]){
-          m.style.background=piece.color;
-        }
-        grid.appendChild(m);
-      }
-    }
-
-    wrapper.appendChild(grid);
-    p.appendChild(wrapper);
-  });
-}
-
-function canPlace(shape,y,x,temp=board){
-  for(let dy=0;dy<shape.length;dy++){
-    for(let dx=0;dx<shape[0].length;dx++){
-      if(shape[dy][dx]){
-        if(y+dy>=size||x+dx>=size||temp[y+dy][x+dx]) return false;
-      }
-    }
-  }
-  return true;
-}
-
-function place(index,y,x){
-  const piece=pieces[index];
-  if(!canPlace(piece.shape,y,x)) return;
-
-  for(let dy=0;dy<piece.shape.length;dy++){
-    for(let dx=0;dx<piece.shape[0].length;dx++){
-      if(piece.shape[dy][dx]){
-        board[y+dy][x+dx]=piece.color;
-        score++;
-      }
-    }
-  }
-
-  pieces.splice(index,1);
-  if(pieces.length===0) generate();
-  selected=null;
-  draw();
-}
-
-function aiTurn(){
-  if(mode!=="ai"||aiBusy) return;
-  aiBusy=true;
-
-  setTimeout(()=>{
-    let placed=false;
-    for(let i=0;i<pieces.length;i++){
       for(let y=0;y<size;y++){
-        for(let x=0;x<size;x++){
-          if(canPlace(pieces[i].shape,y,x)){
-            place(i,y,x);
-            placed=true;
-            break;
+        if(occGrid[y][x]) { filled++; heights[x] = size - y; break; }
+      }
+    }
+    // holes: 各空セルについて下に塊があれば穴
+    for(let y=0;y<size;y++){
+      for(let x=0;x<size;x++){
+        if(!occGrid[y][x]){
+          for(let k=y+1;k<size;k++){
+            if(occGrid[k][x]) { holes++; break; }
           }
         }
-        if(placed) break;
       }
-      if(placed) break;
+    }
+    const aggHeight = heights.reduce((a,b)=>a+b,0);
+    // 評価（小さい方が良い）
+    // ラインは非常に重要 -> マイナス（良い）
+    let v = filled + holes*6 + aggHeight*0.9 - totalLinesSoFar * 220;
+    return v;
+  }
+
+  /* ---------- 全配置列挙（あるピースの全合法位置） ---------- */
+  function enumeratePlacements(piece, occGrid){
+    const list = [];
+    for(let y=0;y<size;y++){
+      for(let x=0;x<size;x++){
+        if(canPlace(piece.shape,y,x,occGrid)){
+          list.push({y,x});
+        }
+      }
+    }
+    return list;
+  }
+
+  /* ---------- ビームサーチ (permutationを考慮) ---------- */
+  function computeBestPlan(currentBoard, handPieces){
+    // occupancy grid
+    const startTime = Date.now();
+    const occ = currentBoard.map(r=>r.map(v=>v?1:0));
+
+    // permutations of indices
+    const perms = [
+      [0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]
+    ].filter(p => p.every(i => i < handPieces.length)); // 安全化
+
+    let globalBest = null;
+
+    for(const perm of perms){
+      // beam holds states: { occGrid, moves: [{idx,y,x,lines}], totalLines, estScore }
+      let beam = [{ occ: deepCopyGrid(occ), moves: [], totalLines: 0, est: 1e9 }];
+      for(let depth=0; depth<Math.min(SEARCH_DEPTH, perm.length); depth++){
+        const idx = perm[depth];
+        const piece = handPieces[idx];
+        const nextBeam = [];
+        for(const state of beam){
+          // enumerate placements on state.occ
+          const placements = enumeratePlacements(piece, state.occ);
+          if(placements.length === 0){
+            // can't place this piece -> invalid branch
+            continue;
+          }
+          for(const pos of placements){
+            const sim = simulatePlaceNoColor(state.occ, piece, pos.y, pos.x);
+            const newTotalLines = state.totalLines + sim.lines;
+            const est = evaluateOccupancy(sim.grid, newTotalLines);
+            nextBeam.push({
+              occ: sim.grid,
+              moves: state.moves.concat([{ idx, y: pos.y, x: pos.x, lines: sim.lines }]),
+              totalLines: newTotalLines,
+              est
+            });
+            if(Date.now() - startTime > TIME_LIMIT_MS) break;
+          }
+          if(Date.now() - startTime > TIME_LIMIT_MS) break;
+        }
+        // prune beam: sort by est ascending, keep BEAM_WIDTH
+        nextBeam.sort((a,b)=>a.est - b.est);
+        beam = nextBeam.slice(0, BEAM_WIDTH);
+        if(beam.length===0) break;
+        if(Date.now() - startTime > TIME_LIMIT_MS) break;
+      }
+      // Evaluate final beam states and pick best by a more accurate scoring that rewards lines and all-clear
+      for(const st of beam){
+        // compute raw score estimate: lines * big + negative of remaining occupancy penalty
+        const occCount = st.occ.flat().reduce((a,b)=>a+b,0);
+        let value = st.totalLines * 20000 - occCount*200 - st.est*10;
+        // all-clear bonus
+        if(occCount === 0){
+          value += ALLCLEAR_BONUS + (allClearStreak * 30000);
+        }
+        if(!globalBest || value > globalBest.value){
+          globalBest = { value, plan: st.moves, occCount, estimatedScore: value };
+        }
+        if(Date.now() - startTime > TIME_LIMIT_MS) break;
+      }
+      if(Date.now() - startTime > TIME_LIMIT_MS) break;
     }
 
-    if(!placed){
-      alert("GAME OVER");
-      aiBusy=false;
-      return;
+    return globalBest;
+  }
+
+  /* ---------- AI 実行と実盤反映（アニメ付き） ---------- */
+  function aiThinkAndPlay(){
+    if(mode !== 'ai' || aiBusy) return;
+    aiBusy = true;
+    aiLabel.innerText = 'AI: THINKING...';
+
+    setTimeout(()=>{ // give UI time to update
+      const planObj = computeBestPlan(board, pieces);
+      if(!planObj || !planObj.plan || planObj.plan.length === 0){
+        // no move -> game over
+        aiLabel.innerText = 'AI: GAME OVER';
+        predictionInfo.innerText = 'No moves available — GAME OVER';
+        aiBusy = false;
+        return;
+      }
+
+      // Save plan for replay & preview
+      lastPlan = { moves: planObj.plan.map(m=>({idx:m.idx,y:m.y,x:m.x,lines:m.lines})), estimatedScore: Math.round(planObj.value) };
+      showPlanPreview(lastPlan);
+
+      // Execute plan sequentially with small delay so humans can see
+      let i = 0;
+      function step(){
+        if(i >= lastPlan.moves.length) {
+          // after finishing plan, regenerate hand and continue
+          // check all-clear detection and scoring already happens in applyPlace
+          generateNewHand();
+          drawAll();
+          aiBusy = false;
+          aiLabel.innerText = 'AI: READY';
+          setTimeout(()=>{ if(mode==='ai') aiThinkAndPlay(); }, 200);
+          return;
+        }
+        const move = lastPlan.moves[i];
+        // find the piece instance in current hand that matches move.idx in original indexing.
+        // Because we regenerated hand after places, we must use the first available piece that has identical shape/color pair.
+        // To simplify: use the first piece in hand (greedy) that can be placed at y,x (the plan was computed from prior hand).
+        let usedIndex = -1;
+        for(let k=0;k<pieces.length;k++){
+          if(canPlace(pieces[k].shape, move.y, move.x, board)){
+            usedIndex = k; break;
+          }
+        }
+        if(usedIndex === -1){
+          // fallback: search any placement
+          for(let k=0;k<pieces.length;k++){
+            const list = enumeratePlacements(pieces[k], board);
+            if(list.length) { usedIndex = k; move.y = list[0].y; move.x = list[0].x; break; }
+          }
+        }
+
+        if(usedIndex === -1){
+          aiBusy = false; aiLabel.innerText = 'AI: stuck'; return;
+        }
+
+        // animate highlight
+        highlightPlacement(move.y, move.x, pieces[usedIndex].shape, pieces[usedIndex].color);
+        setTimeout(()=>{
+          // apply
+          const res = applyPlaceAndScore(pieces[usedIndex], move.y, move.x);
+          pieces.splice(usedIndex,1);
+          // if hand empty generate new
+          if(pieces.length === 0) generateNewHand();
+          drawAll();
+          i++;
+          setTimeout(step, 160); // next placement
+        }, 240);
+      }
+      step();
+    }, 40);
+  }
+
+  /* ---------- 実盤に置いてスコア加算、全消し判定 ---------- */
+  function applyPlaceAndScore(piece, y, x){
+    if(!canPlace(piece.shape,y,x,board)) return null;
+    const placedCount = countPieceCells(piece);
+    // place color
+    for(let dy=0; dy<piece.shape.length; dy++){
+      for(let dx=0; dx<piece.shape[0].length; dx++){
+        if(piece.shape[dy][dx]) board[y+dy][x+dx] = piece.color;
+      }
+    }
+    // check lines cleared
+    let lines=0;
+    for(let r=0;r<size;r++){
+      if(board[r].every(v=>v)){ lines++; board[r].fill(0); }
+    }
+    for(let c=0;c<size;c++){
+      if(board.map(row=>row[c]).every(v=>v)){ lines++; for(let r=0;r<size;r++) board[r][c]=0; }
     }
 
-    aiBusy=false;
-    aiTurn();
-  },200);
-}
+    // scoring: basic + bonus for lines + huge all-clear bonus
+    let gained = placedCount;
+    if(lines>0){
+      gained += lines * 500 + lines * 1200; // heavy reward
+    }
+    // if all cleared:
+    const remaining = board.flat().filter(Boolean).length;
+    if(remaining === 0){
+      gained += ALLCLEAR_BONUS / 1000; // make score number reasonable (display-wise)
+      allClearStreak++;
+      // visual celebration
+      flashAllClear();
+    } else {
+      allClearStreak = 0;
+    }
+    score += Math.floor(gained);
+    return { lines, remaining };
+  }
 
-document.getElementById("aiBtn").onclick=()=>{
-  mode="ai";
-  aiTurn();
-};
+  function countPieceCells(piece){
+    let c=0;
+    for(let y=0;y<piece.shape.length;y++) for(let x=0;x<piece.shape[0].length;x++) if(piece.shape[y][x]) c++;
+    return c;
+  }
 
-document.getElementById("manualBtn").onclick=()=>{
-  mode="manual";
-};
+  function generateNewHand(){
+    // after AI placed planned moves we want fresh 3 pieces
+    generateHand();
+  }
 
-init();
+  /* ---------- UI helpers: preview & highlight & replay ---------- */
+  const previewDivs = [];
+  function showPlanPreview(plan){
+    // clear old overlays
+    clearPreview();
+    if(!plan || !plan.moves) return;
+    predictionInfo.innerText = `AI plan: ${plan.moves.length} placements — est ${plan.estimatedScore}`;
+    // show first move overlay only for clarity
+    const first = plan.moves[0];
+    if(!first) return;
+    // create overlay cells for piece shape
+    const piece = pieces[0] || plan.moves[0]; // may not match exactly but it's a preview
+    // We'll draw translucent boxes on board for the planned placements (best-effort)
+    for(const mv of plan.moves){
+      for(let dy=0; dy<shapes[0].length; dy++){
+        // not used
+      }
+      // create an overlay rectangle for the placed shape center
+      const overlay = document.createElement('div');
+      overlay.className = 'previewCell previewOverlay';
+      overlay.style.background = 'rgba(59,130,246,0.12)';
+      overlay.style.border = '2px dashed rgba(59,130,246,0.5)';
+      overlay.style.width = `${parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell'))}px`;
+      overlay.style.height = `${parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell'))}px`;
+      // compute position of target cell
+      const idx = mv.y * size + mv.x;
+      const targetCell = boardEl.children[idx];
+      if(targetCell){
+        const rect = targetCell.getBoundingClientRect();
+        const parentRect = boardEl.getBoundingClientRect();
+        overlay.style.left = `${rect.left - parentRect.left + rect.width/2}px`;
+        overlay.style.top  = `${rect.top  - parentRect.top  + rect.height/2}px`;
+        overlay.style.transform = 'translate(-50%,-50%)';
+        overlay.style.position = 'absolute';
+        overlay.style.pointerEvents = 'none';
+        boardEl.appendChild(overlay);
+        previewDivs.push(overlay);
+      }
+    }
+    // remove after a moment
+    setTimeout(clearPreview, 1200);
+  }
 
-});
+  function clearPreview(){
+    while(previewDivs.length) {
+      const el = previewDivs.pop();
+      if(el && el.parentNode) el.parentNode.removeChild(el);
+    }
+  }
+
+  function highlightPlacement(y,x,shape,color){
+    // animate a simple highlight on target cell(s)
+    const cells = [];
+    for(let dy=0;dy<shape.length;dy++){
+      for(let dx=0;dx<shape[0].length;dx++){
+        if(shape[dy][dx]){
+          const idx = (y+dy) * size + (x+dx);
+          const target = boardEl.children[idx];
+          if(target){
+            const h = document.createElement('div');
+            h.style.position='absolute';
+            h.style.left = target.offsetLeft + 'px';
+            h.style.top  = target.offsetTop + 'px';
+            h.style.width = target.clientWidth + 'px';
+            h.style.height= target.clientHeight + 'px';
+            h.style.background = color;
+            h.style.opacity = 0.28;
+            h.style.borderRadius = '12px';
+            h.style.transition = 'opacity .35s ease';
+            boardEl.appendChild(h);
+            cells.push(h);
+            setTimeout(()=>{ h.style.opacity = 0; setTimeout(()=>h.remove(),420); }, 260);
+          }
+        }
+      }
+    }
+  }
+
+  function flashAllClear(){
+    // flash border
+    boardEl.style.boxShadow = '0 0 40px rgba(255,200,60,0.6)';
+    setTimeout(()=> boardEl.style.boxShadow = '', 520);
+  }
+
+  /* ---------- Replay control ---------- */
+  document.getElementById('replayBtn').addEventListener('click', ()=>{
+    if(!lastPlan) { alert('No AI plan to replay yet.'); return; }
+    // replay lastPlan visually without changing state
+    // We'll simulate on a temporary canvas: overlay sequence numbers
+    clearPreview();
+    const clones = [];
+    lastPlan.moves.forEach((m,i)=>{
+      const idx = m.y * size + m.x;
+      const target = boardEl.children[idx];
+      if(!target) return;
+      const badge = document.createElement('div');
+      badge.style.position='absolute';
+      const parentRect = boardEl.getBoundingClientRect();
+      const rect = target.getBoundingClientRect();
+      badge.style.left = `${rect.left - parentRect.left + rect.width/2}px`;
+      badge.style.top  = `${rect.top  - parentRect.top  + rect.height/2}px`;
+      badge.style.transform='translate(-50%,-50%)';
+      badge.style.padding='6px 8px';
+      badge.style.borderRadius='10px';
+      badge.style.background='rgba(20,20,30,0.85)';
+      badge.style.color='white';
+      badge.style.fontWeight='800';
+      badge.style.zIndex='999';
+      badge.innerText = (i+1);
+      boardEl.appendChild(badge);
+      clones.push(badge);
+      setTimeout(()=>{ badge.remove(); }, 900 + i*120);
+    });
+  });
+
+  /* ---------- Controls ---------- */
+  document.getElementById('aiBtn').addEventListener('click', ()=> { mode='ai'; aiThinkAndPlay(); });
+  document.getElementById('manualBtn').addEventListener('click', ()=> { mode='manual'; });
+  document.getElementById('showPlan').addEventListener('click', ()=> { if(lastPlan) showPlanPreview(lastPlan); });
+  document.getElementById('speedUp').addEventListener('click', ()=> { /* could toggle speed, placeholder */ alert('Speed toggle not implemented in this build'); });
+
+  /* ---------- Start ---------- */
+  init();
+
+  // Expose some functions for debugging in console (optional)
+  window._bb = { board, pieces, computeBestPlan, applyPlaceAndScore, drawAll };
+
+})();
 </script>
-
 </body>
 </html>
