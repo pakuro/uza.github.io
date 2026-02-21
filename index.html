@@ -1,645 +1,268 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8" />
-<title>Block Blast — 完全版</title>
+<meta charset="UTF-8">
+<title>Block Blast — 見やすい完全版</title>
 <style>
-  :root{
-    --cell:55px;
-    --gap:6px;
-  }
-  body{
-    margin:0;
-    background:#eef4fb;
-    display:flex;
-    justify-content:center;
-    align-items:flex-start;
-    min-height:100vh;
-    font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "メイリオ", sans-serif;
-    padding:32px;
-  }
-
-  #game{
-    width:640px;
-    background:#ffffff;
-    border-radius:14px;
-    box-shadow:0 8px 30px rgba(20,30,60,0.12);
-    padding:18px;
-  }
-
-  .topbar{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:12px;
-    margin-bottom:12px;
-  }
-
-  #score{
-    font-size:28px;
-    font-weight:700;
-    color:#1e293b;
-  }
-
-  .controls button{
-    margin-right:6px;
-    padding:8px 10px;
-    border-radius:8px;
-    border:0;
-    background:#2b8aef;
-    color:white;
-    font-weight:600;
-    cursor:pointer;
-  }
-  .controls button.secondary{
-    background:#94a3b8;
-  }
-  .controls button:disabled{opacity:.5; cursor:default;}
-
-  #board{
-    width: calc(var(--cell) * 8 + var(--gap) * 7 + 24px);
-    margin:12px auto;
-    display:grid;
-    grid-template-columns: repeat(8, var(--cell));
-    gap: var(--gap);
-    background:#e6eefb;
-    padding:12px;
-    border-radius:12px;
-    justify-content:center;
-  }
-  .cell{
-    width:var(--cell);
-    height:var(--cell);
-    background: #f6f8fb;
-    border-radius:12px;
-    box-shadow: inset 0 2px 0 rgba(255,255,255,0.7);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    position:relative;
-    cursor: pointer;
-    transition: transform .06s ease;
-  }
-  .cell:hover{ transform: translateY(-2px); }
-
-  .filled{
-    border-radius:10px;
-    box-shadow:
-      inset 0 -5px 8px rgba(0,0,0,0.18),
-      inset 0 6px 10px rgba(255,255,255,0.35),
-      0 4px 10px rgba(12,24,60,0.12);
-    width: calc(100% - 8px);
-    height: calc(100% - 8px);
-  }
-
-  /* pieces preview */
-  #hud{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
-    margin-top:12px;
-    gap:12px;
-  }
-
-  .piecesArea{
-    display:flex;
-    gap:12px;
-    align-items:center;
-  }
-
-  .piecePreview{
-    display:inline-grid;
-    gap:3px;
-    background:transparent;
-    padding:6px;
-    border-radius:10px;
-    min-width:70px;
-    text-align:center;
-  }
-  .piecePreview .mini{
-    width:18px;
-    height:18px;
-    background:#e6eefb;
-    border-radius:4px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
-  }
-  .piecePreview .mini.filled{
-    box-shadow:
-      inset 0 -4px 6px rgba(0,0,0,0.18),
-      inset 0 4px 6px rgba(255,255,255,0.35);
-  }
-  .pieceWrapper{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:6px;
-    cursor:pointer;
-  }
-  .pieceWrapper.selected{
-    outline:3px solid #ff9f1c55;
-    border-radius:8px;
-  }
-
-  .holdBox{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:6px;
-    padding:8px;
-    border-radius:8px;
-    background:#f5f8ff;
-    min-width:92px;
-  }
-  .status{
-    font-size:14px;
-    color:#334155;
-  }
-
-  .plus{
-    position:absolute;
-    font-size:20px;
-    font-weight:700;
-    color:#16a34a;
-    animation:floatUp 0.9s ease-out forwards;
-    pointer-events:none;
-  }
-  @keyframes floatUp{
-    from{opacity:1; transform:translateY(0);}
-    to{opacity:0; transform:translateY(-44px);}
-  }
-
-  footer { margin-top:12px; color:#64748b; font-size:13px; display:flex; justify-content:space-between; align-items:center;}
+body{
+  margin:0;
+  background:#eef4fb;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  font-family:sans-serif;
+}
+#game{
+  background:white;
+  padding:20px;
+  border-radius:15px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.15);
+}
+#score{
+  font-size:28px;
+  font-weight:bold;
+  margin-bottom:10px;
+}
+#board{
+  display:grid;
+  grid-template-columns:repeat(8,50px);
+  gap:6px;
+  background:#dce6f7;
+  padding:10px;
+  border-radius:10px;
+}
+.cell{
+  width:50px;
+  height:50px;
+  background:#f8fbff;
+  border-radius:10px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  cursor:pointer;
+}
+.block{
+  width:42px;
+  height:42px;
+  border-radius:8px;
+  box-shadow:
+    inset 0 -4px 6px rgba(0,0,0,0.2),
+    inset 0 4px 6px rgba(255,255,255,0.4);
+}
+#pieces{
+  margin-top:15px;
+  display:flex;
+  gap:20px;
+}
+.piece{
+  cursor:pointer;
+  padding:5px;
+  border-radius:8px;
+}
+.piece.selected{
+  outline:3px solid orange;
+}
+.mini{
+  width:18px;
+  height:18px;
+  background:#dce6f7;
+  border-radius:4px;
+}
 </style>
 </head>
 <body>
-  <div id="game">
-    <div class="topbar">
-      <div id="score">SCORE: 0</div>
-      <div class="controls">
-        <button id="aiBtn">AI</button>
-        <button id="manualBtn" class="secondary">MANUAL</button>
-        <button id="holdBtn" class="secondary">HOLD</button>
-      </div>
-    </div>
 
-    <div id="board"></div>
-
-    <div id="hud">
-      <div class="piecesArea" id="pieces"></div>
-
-      <div class="holdBox" id="holdBox">
-        <div style="font-weight:700">HOLD</div>
-        <div id="holdPreview"></div>
-        <div class="status" id="status">Mode: AI</div>
-      </div>
-    </div>
-
-    <footer>
-      <div>Block Blast — 完全版</div>
-      <div id="authorNote">手動はピースを選んで盤面のマスをクリック</div>
-    </footer>
-  </div>
+<div id="game">
+  <div id="score">0</div>
+  <button id="aiBtn">AI</button>
+  <button id="manualBtn">MANUAL</button>
+  <div id="board"></div>
+  <div id="pieces"></div>
+</div>
 
 <script>
-/* ---------- 設定 ---------- */
-const size = 8;
-const shapes = [
-  [[1]],
-  [[1,1]],
-  [[1,1,1]],
-  [[1,1,1,1]],
-  [[1],[1]],
-  [[1],[1],[1]],
-  [[1,1],[1,1]],
-  [[1,0],[1,1]],
-  [[1,1,1],[0,1,0]]
+document.addEventListener("DOMContentLoaded",()=>{
+
+const size=8;
+let board=[];
+let pieces=[];
+let score=0;
+let mode="ai";
+let selected=null;
+let aiBusy=false;
+
+// 🔹 固定で見やすい色配列
+const colors=["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
+
+const shapes=[
+[[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
+[[1],[1]],[[1],[1],[1]],
+[[1,1],[1,1]],
+[[1,0],[1,1]],
+[[1,1,1],[0,1,0]]
 ];
 
-/* ---------- 状態 ---------- */
-let board = [];
-let pieces = [];
-let holdPiece = null;
-let holdUsed = false; // ホールドは1ターンに1回
-let score = 0;
-let combo = 0;
-let mode = "ai"; // "ai" or "manual"
-let selected = null; // manualで選択中のピースインデックス
-let aiBusy = false;
-
-/* ---------- ヘルパー ---------- */
 function randColor(){
-  return `hsl(${Math.floor(Math.random()*360)},70%,56%)`;
-}
-function deepCopyGrid(g){
-  return JSON.parse(JSON.stringify(g));
+  return colors[Math.floor(Math.random()*colors.length)];
 }
 
-/* ---------- 初期化 ---------- */
 function init(){
-  board = Array(size).fill().map(()=>Array(size).fill(0));
-  score = 0; combo = 0; selected = null; aiBusy=false; mode="ai"; holdUsed=false;
-  generatePieces();
+  board=Array(size).fill().map(()=>Array(size).fill(0));
+  score=0;
+  generate();
   draw();
-  document.getElementById('status').innerText = "Mode: AI";
-  aiTurn(); // AI起動
-}
-function generatePieces(){
-  pieces = [];
-  for(let i=0;i<3;i++){
-    pieces.push({ shape: shapes[Math.floor(Math.random()*shapes.length)], color: randColor() });
-  }
-  holdUsed = false;
+  aiTurn();
 }
 
-/* ---------- 描画 ---------- */
+function generate(){
+  pieces=[];
+  for(let i=0;i<3;i++){
+    pieces.push({
+      shape:shapes[Math.floor(Math.random()*shapes.length)],
+      color:randColor()
+    });
+  }
+}
+
 function draw(){
   drawBoard();
   drawPieces();
-  drawHold();
-  document.getElementById('score').innerText = `SCORE: ${score}`;
+  document.getElementById("score").innerText=score;
 }
 
 function drawBoard(){
-  const b = document.getElementById('board');
-  b.innerHTML = "";
+  const b=document.getElementById("board");
+  b.innerHTML="";
   for(let y=0;y<size;y++){
     for(let x=0;x<size;x++){
-      const cell = document.createElement('div');
-      cell.className = 'cell';
+      const c=document.createElement("div");
+      c.className="cell";
       if(board[y][x]){
-        const inner = document.createElement('div');
-        inner.className = 'filled';
-        inner.style.background = board[y][x];
-        cell.appendChild(inner);
+        const inner=document.createElement("div");
+        inner.className="block";
+        inner.style.background=board[y][x];
+        c.appendChild(inner);
       }
-      // クリックで配置（manualモード）
-      cell.onclick = ()=>{
-        if(mode === "manual" && selected !== null && !aiBusy){
-          place(selected, y, x);
+      c.onclick=()=>{
+        if(mode==="manual" && selected!==null){
+          place(selected,y,x);
         }
       };
-      b.appendChild(cell);
+      b.appendChild(c);
     }
   }
 }
 
 function drawPieces(){
-  const pDiv = document.getElementById('pieces');
-  pDiv.innerHTML = "";
-  pieces.forEach((p,i)=>{
-    const wrapper = document.createElement('div');
-    wrapper.className = 'pieceWrapper';
-    if(i === selected) wrapper.classList.add('selected');
-    wrapper.onclick = ()=>{
-      if(mode === "manual") { selected = i; draw(); }
+  const p=document.getElementById("pieces");
+  p.innerHTML="";
+  pieces.forEach((piece,i)=>{
+    const wrapper=document.createElement("div");
+    wrapper.className="piece";
+    if(i===selected) wrapper.classList.add("selected");
+    wrapper.onclick=()=>{
+      if(mode==="manual"){
+        selected=i;
+        draw();
+      }
     };
 
-    const grid = document.createElement('div');
-    grid.className = 'piecePreview';
-    grid.style.gridTemplateColumns = `repeat(${p.shape[0].length}, 18px)`;
+    const grid=document.createElement("div");
+    grid.style.display="grid";
+    grid.style.gridTemplateColumns=`repeat(${piece.shape[0].length},18px)`;
+    grid.style.gap="2px";
 
-    // 形をミニで描画
-    for(let ry=0; ry<p.shape.length; ry++){
-      for(let rx=0; rx<p.shape[0].length; rx++){
-        const m = document.createElement('div');
-        m.className = 'mini';
-        if(p.shape[ry][rx]){
-          m.classList.add('filled');
-          m.style.background = p.color;
+    for(let y=0;y<piece.shape.length;y++){
+      for(let x=0;x<piece.shape[0].length;x++){
+        const m=document.createElement("div");
+        m.className="mini";
+        if(piece.shape[y][x]){
+          m.style.background=piece.color;
         }
         grid.appendChild(m);
       }
     }
 
-    const label = document.createElement('div');
-    label.style.fontSize = '12px';
-    label.style.marginTop = '6px';
-    label.style.fontWeight = '600';
-    label.innerText = `P${i+1}`;
-
     wrapper.appendChild(grid);
-    wrapper.appendChild(label);
-    pDiv.appendChild(wrapper);
+    p.appendChild(wrapper);
   });
 }
 
-function drawHold(){
-  const h = document.getElementById('holdPreview');
-  h.innerHTML = "";
-  if(!holdPiece){
-    h.innerText = "—";
-    return;
-  }
-  const grid = document.createElement('div');
-  grid.className = 'piecePreview';
-  grid.style.gridTemplateColumns = `repeat(${holdPiece.shape[0].length}, 18px)`;
-  for(let ry=0; ry<holdPiece.shape.length; ry++){
-    for(let rx=0; rx<holdPiece.shape[0].length; rx++){
-      const m = document.createElement('div');
-      m.className = 'mini';
-      if(holdPiece.shape[ry][rx]){
-        m.classList.add('filled');
-        m.style.background = holdPiece.color;
-      }
-      grid.appendChild(m);
-    }
-  }
-  h.appendChild(grid);
-}
-
-/* ---------- 盤面操作（適用部） ---------- */
-/* 盤面に「色」を書き込み、ライン消去を行う（pieces配列の操作はしない） */
-function applyPlacementToBoard(piece, y, x){
-  // 置けるかチェック
-  if(!canPlace(piece.shape, y, x, board)) return null;
-
-  // 置く
-  for(let dy=0; dy<piece.shape.length; dy++){
-    for(let dx=0; dx<piece.shape[0].length; dx++){
-      if(piece.shape[dy][dx]){
-        board[y+dy][x+dx] = piece.color;
-      }
-    }
-  }
-
-  // ライン消去とスコア計算
-  let lines = 0;
-  // 横
-  for(let i=0;i<size;i++){
-    if(board[i].every(v=>v)){
-      lines++;
-      board[i].fill(0);
-    }
-  }
-  // 縦
-  for(let i=0;i<size;i++){
-    if(board.map(r=>r[i]).every(v=>v)){
-      lines++;
-      for(let j=0;j<size;j++) board[j][i] = 0;
-    }
-  }
-
-  return { placed: countPieceCells(piece), lines };
-}
-
-/* 手動用：pieces配列から取り出して配置 */
-function place(index, y, x){
-  if(index < 0 || index >= pieces.length) return;
-  const piece = pieces[index];
-  if(!canPlace(piece.shape, y, x, board)) return;
-
-  const res = applyPlacementToBoard(piece, y, x);
-  if(!res) return;
-
-  // スコア計算
-  let gained = res.placed;
-  if(res.lines > 0){
-    combo++;
-    gained += res.lines * 150 + combo * 100;
-  } else {
-    combo = 0;
-  }
-  if(board.flat().every(v=>!v)) gained += 2000;
-
-  showPlus(gained);
-  score += gained;
-
-  // 使ったピースを削除、足りなければ生成
-  pieces.splice(index, 1);
-  if(pieces.length === 0) generatePiecesAfterPlacement();
-  selected = null;
-  draw();
-}
-
-/* AIで使う：オブジェクトをそのまま置く（pieces配列は触らない） */
-function placePieceObjectWithoutRemoving(piece, y, x){
-  const res = applyPlacementToBoard(piece, y, x);
-  if(!res) return 0;
-  let gained = res.placed;
-  if(res.lines > 0){
-    combo++;
-    gained += res.lines * 150 + combo * 100;
-  } else combo = 0;
-  if(board.flat().every(v=>!v)) gained += 2000;
-  score += gained;
-  return gained;
-}
-
-/* generate後の呼び出し（表示更新用） */
-function generatePiecesAfterPlacement(){
-  // 盤面はそのまま、手持ちを新規生成
-  generatePieces();
-  draw();
-}
-
-/* カウント補助 */
-function countPieceCells(piece){
-  let c=0;
-  for(let y=0;y<piece.shape.length;y++)
-    for(let x=0;x<piece.shape[0].length;x++)
-      if(piece.shape[y][x]) c++;
-  return c;
-}
-
-/* canPlace：指定テンポラリで置けるか */
-function canPlace(shape, y, x, temp){
-  for(let dy=0; dy<shape.length; dy++){
-    for(let dx=0; dx<shape[0].length; dx++){
+function canPlace(shape,y,x,temp=board){
+  for(let dy=0;dy<shape.length;dy++){
+    for(let dx=0;dx<shape[0].length;dx++){
       if(shape[dy][dx]){
-        if(y+dy >= size || x+dx >= size) return false;
-        if(temp[y+dy][x+dx]) return false;
+        if(y+dy>=size||x+dx>=size||temp[y+dy][x+dx]) return false;
       }
     }
   }
   return true;
 }
 
-/* simulate：一時盤面に置いてライン消去まで行う（占有はtruthy判定） */
-function simulate(temp, piece, y, x){
-  // tempはdeep copyで受けることを想定
-  for(let dy=0; dy<piece.shape.length; dy++){
-    for(let dx=0; dx<piece.shape[0].length; dx++){
+function place(index,y,x){
+  const piece=pieces[index];
+  if(!canPlace(piece.shape,y,x)) return;
+
+  for(let dy=0;dy<piece.shape.length;dy++){
+    for(let dx=0;dx<piece.shape[0].length;dx++){
       if(piece.shape[dy][dx]){
-        temp[y+dy][x+dx] = 1; // 占有を表す truthy 値
+        board[y+dy][x+dx]=piece.color;
+        score++;
       }
     }
   }
-  let lines = 0;
-  for(let i=0;i<size;i++){
-    if(temp[i].every(v=>v)) { lines++; temp[i].fill(0); }
-  }
-  for(let i=0;i<size;i++){
-    if(temp.map(r=>r[i]).every(v=>v)) { lines++; for(let j=0;j<size;j++) temp[j][i]=0; }
-  }
-  return { placed: countPieceCells(piece), lines };
+
+  pieces.splice(index,1);
+  if(pieces.length===0) generate();
+  selected=null;
+  draw();
 }
 
-/* 盤面評価関数（AI用） */
-function evaluateGrid(temp, totalLines){
-  // temp は occupancy truthy/falsy のグリッド
-  let filled = 0;
-  let holes = 0;
-  let heights = Array(size).fill(0);
-  for(let y=0;y<size;y++){
-    for(let x=0;x<size;x++){
-      if(temp[y][x]) filled++;
-      else {
-        // 下にブロックがあれば穴とみなす
-        for(let k=y+1;k<size;k++){
-          if(temp[k][x]) { holes++; break; }
-        }
-      }
-    }
-  }
-  // 列ごとの高さペナルティ
-  for(let x=0;x<size;x++){
-    for(let y=0;y<size;y++){
-      if(temp[y][x]) { heights[x] = size - y; break; }
-    }
-  }
-  let aggHeight = heights.reduce((a,b)=>a+b,0);
-
-  // 評価: 小さいほど良い
-  let scoreEval = filled + holes*4 + aggHeight*0.8 - totalLines*80;
-  return scoreEval;
-}
-
-/* show plus animation */
-function showPlus(points){
-  if(points<=0) return;
-  const plus = document.createElement('div');
-  plus.className = 'plus';
-  plus.innerText = `+${points}`;
-  plus.style.left = '50%';
-  plus.style.top = '28px';
-  plus.style.transform = 'translateX(-50%)';
-  document.getElementById('game').appendChild(plus);
-  setTimeout(()=>plus.remove(),900);
-}
-
-/* ---------- ホールド ---------- */
-function doHold(){
-  if(holdUsed) return;
-  // manualで選択中のピースをホールド、あるいは入れ替え
-  if(mode === "manual"){
-    if(selected === null) return;
-    const held = pieces[selected];
-    if(holdPiece){
-      // swap
-      pieces[selected] = holdPiece;
-      holdPiece = held;
-    } else {
-      holdPiece = held;
-      pieces.splice(selected,1);
-      if(pieces.length===0) generatePieces();
-    }
-    selected = null;
-    holdUsed = true;
-    draw();
-    return;
-  }
-  // AIモードでは、ホールド判断は今はしない（将来的に追加可能）
-}
-
-/* ---------- AIロジック ---------- */
 function aiTurn(){
-  if(mode !== "ai" || aiBusy) return;
-  aiBusy = true;
-  setTimeout(()=>{
-    // 全順列で探索（3ピース）
-    const perms = [
-      [0,1,2],[0,2,1],[1,0,2],
-      [1,2,0],[2,0,1],[2,1,0]
-    ];
-    let bestSequence = null;
-    let bestVal = Infinity;
+  if(mode!=="ai"||aiBusy) return;
+  aiBusy=true;
 
-    for(const perm of perms){
-      // temp board を occupancy に変換（truthy/falsy）
-      let temp = Array(size).fill().map(()=>Array(size).fill(0));
+  setTimeout(()=>{
+    let placed=false;
+    for(let i=0;i<pieces.length;i++){
       for(let y=0;y<size;y++){
         for(let x=0;x<size;x++){
-          if(board[y][x]) temp[y][x] = 1;
-        }
-      }
-
-      let totalLines = 0;
-      let moves = [];
-      let validSeq = true;
-
-      for(const idx of perm){
-        const piece = pieces[idx];
-        let placed = false;
-        // 探索順序：低いy（上）から右へ
-        for(let y=0;y<size && !placed;y++){
-          for(let x=0;x<size && !placed;x++){
-            if(canPlace(piece.shape, y, x, temp)){
-              const sim = deepCopyGrid(temp);
-              const r = simulate(sim, piece, y, x);
-              temp = sim;
-              totalLines += r.lines;
-              moves.push({ piece, y, x, placedCells: r.placed, lines: r.lines });
-              placed = true;
-            }
+          if(canPlace(pieces[i].shape,y,x)){
+            place(i,y,x);
+            placed=true;
+            break;
           }
         }
-        if(!placed) { validSeq = false; break; }
+        if(placed) break;
       }
-
-      if(!validSeq) continue;
-
-      const val = evaluateGrid(temp, totalLines);
-      if(val < bestVal){
-        bestVal = val;
-        bestSequence = moves;
-      }
+      if(placed) break;
     }
 
-    if(!bestSequence){
-      // 置けない -> ゲームオーバー
-      document.getElementById('status').innerText = "GAME OVER";
-      aiBusy = false;
+    if(!placed){
+      alert("GAME OVER");
+      aiBusy=false;
       return;
     }
 
-    // 実行フェーズ：bestSequence 中の piece オブジェクトを順に配置（pieces配列は直接触らない）
-    let gainedTotal = 0;
-    for(const move of bestSequence){
-      // 構造上、applyPlacementToBoard は pieces を操作しないため安全に呼べる
-      const g = placePieceObjectWithoutRemoving(move.piece, move.y, move.x);
-      gainedTotal += g;
-    }
-
-    // AIは手持ちをリセットして新しい手持ちを生成（実際のゲーム挙動に合わせる）
-    generatePieces();
-    draw();
-
-    aiBusy = false;
-    // 少し待って次のターン
-    setTimeout(()=>{ if(mode==="ai") aiTurn(); }, 180);
-  }, 180);
+    aiBusy=false;
+    aiTurn();
+  },200);
 }
 
-/* ---------- UIボタン紐付け ---------- */
-document.getElementById('aiBtn').onclick = ()=>{
-  mode = "ai";
-  document.getElementById('status').innerText = "Mode: AI";
-  selected = null;
-  draw();
+document.getElementById("aiBtn").onclick=()=>{
+  mode="ai";
   aiTurn();
 };
-document.getElementById('manualBtn').onclick = ()=>{
-  mode = "manual";
-  document.getElementById('status').innerText = "Mode: MANUAL";
-  selected = null;
-  draw();
-};
-document.getElementById('holdBtn').onclick = ()=>{
-  doHold();
+
+document.getElementById("manualBtn").onclick=()=>{
+  mode="manual";
 };
 
-/* ---------- 初期化実行 ---------- */
 init();
+
+});
 </script>
+
 </body>
 </html>
