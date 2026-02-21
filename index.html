@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Block Blast Poki + AI</title>
+<title>Block Blast Touch</title>
 <style>
 body{
     margin:0;
@@ -12,45 +12,45 @@ body{
     align-items:center;
     height:100vh;
     font-family:sans-serif;
+    touch-action:none;
 }
-#container{
-    text-align:center;
-}
+#container{text-align:center;}
 #board{
     display:grid;
-    grid-template-columns:repeat(8,55px);
-    gap:6px;
+    grid-template-columns:repeat(8,50px);
+    gap:5px;
     background:#dcdde1;
     padding:10px;
     border-radius:12px;
 }
 .cell{
-    width:55px;
-    height:55px;
+    width:50px;
+    height:50px;
     background:white;
     border-radius:10px;
 }
-.filled{
-    border-radius:10px;
-}
-#pieces{
-    margin-top:20px;
-}
+.filled{border-radius:10px;}
+
+#pieces{margin-top:20px;}
 .piece{
     display:inline-block;
     margin:10px;
-    cursor:grab;
+    position:relative;
 }
 .block{
-    width:20px;
-    height:20px;
+    width:18px;
+    height:18px;
     display:inline-block;
-    border-radius:5px;
+    border-radius:4px;
 }
-button{
-    margin:5px;
-    padding:6px 12px;
+
+.dragging{
+    position:fixed;
+    pointer-events:none;
+    opacity:0.9;
+    z-index:999;
 }
+button{margin:5px;padding:6px 12px;}
 </style>
 </head>
 <body>
@@ -67,8 +67,9 @@ button{
 const size=8;
 let board=[];
 let pieces=[];
-let dragging=null;
 let mode="player";
+let draggingIndex=null;
+let dragElement=null;
 
 const shapes=[
 [[1]],
@@ -117,8 +118,7 @@ function drawPieces(){
     pieces.forEach((obj,i)=>{
         const div=document.createElement("div");
         div.className="piece";
-        div.draggable=true;
-        div.ondragstart=()=>dragging=i;
+        div.dataset.index=i;
 
         obj.shape.forEach(row=>{
             const r=document.createElement("div");
@@ -130,28 +130,65 @@ function drawPieces(){
             });
             div.appendChild(r);
         });
+
+        div.addEventListener("touchstart",startDrag);
+        div.addEventListener("mousedown",startDrag);
+
         p.appendChild(div);
     });
 }
 
-document.addEventListener("dragover",e=>e.preventDefault());
-
-document.addEventListener("drop",e=>{
+function startDrag(e){
     if(mode!=="player") return;
-    const cell=e.target;
-    if(!cell.classList.contains("cell")) return;
 
-    const y=parseInt(cell.dataset.y);
-    const x=parseInt(cell.dataset.x);
-    const obj=pieces[dragging];
+    draggingIndex=parseInt(e.currentTarget.dataset.index);
 
-    if(canPlace(obj.shape,y,x)){
-        place(obj,y,x);
-        pieces.splice(dragging,1);
-        if(pieces.length===0) generatePieces();
-        update();
+    dragElement=e.currentTarget.cloneNode(true);
+    dragElement.classList.add("dragging");
+    document.body.appendChild(dragElement);
+
+    moveDrag(e);
+
+    document.addEventListener("touchmove",moveDrag);
+    document.addEventListener("mousemove",moveDrag);
+    document.addEventListener("touchend",endDrag);
+    document.addEventListener("mouseup",endDrag);
+}
+
+function moveDrag(e){
+    if(!dragElement) return;
+    let touch=e.touches?e.touches[0]:e;
+    dragElement.style.left=touch.clientX-30+"px";
+    dragElement.style.top=touch.clientY-30+"px";
+}
+
+function endDrag(e){
+    if(!dragElement) return;
+
+    let touch=e.changedTouches?e.changedTouches[0]:e;
+    let element=document.elementFromPoint(touch.clientX,touch.clientY);
+
+    if(element && element.classList.contains("cell")){
+        let y=parseInt(element.dataset.y);
+        let x=parseInt(element.dataset.x);
+        let obj=pieces[draggingIndex];
+        if(canPlace(obj.shape,y,x)){
+            place(obj,y,x);
+            pieces.splice(draggingIndex,1);
+            if(pieces.length===0) generatePieces();
+            update();
+        }
     }
-});
+
+    dragElement.remove();
+    dragElement=null;
+    draggingIndex=null;
+
+    document.removeEventListener("touchmove",moveDrag);
+    document.removeEventListener("mousemove",moveDrag);
+    document.removeEventListener("touchend",endDrag);
+    document.removeEventListener("mouseup",endDrag);
+}
 
 function canPlace(shape,y,x){
     for(let dy=0;dy<shape.length;dy++){
@@ -215,10 +252,9 @@ function gameOver(){
     mode="stop";
 }
 
-/* ===== AI ===== */
+/* AI */
 function aiMove(){
     if(mode!=="ai") return;
-
     for(let i=0;i<pieces.length;i++){
         for(let y=0;y<size;y++){
             for(let x=0;x<size;x++){
@@ -233,7 +269,6 @@ function aiMove(){
         }
     }
 }
-
 setInterval(aiMove,700);
 
 init();
