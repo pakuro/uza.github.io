@@ -2,26 +2,19 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Block Blast 最強AI 完全版</title>
+<title>Block Blast GOD AI</title>
 <style>
 body{
     margin:0;
-    background:#f4f6fb;
+    background:#eef2f7;
     display:flex;
     justify-content:center;
     align-items:center;
     height:100vh;
     font-family:sans-serif;
 }
-#game{
-    position:relative;
-    text-align:center;
-}
-#score{
-    font-size:64px;
-    font-weight:bold;
-    margin-bottom:10px;
-}
+#game{ text-align:center; }
+#score{ font-size:48px; font-weight:bold; margin:10px; }
 #board{
     display:grid;
     grid-template-columns:repeat(8,55px);
@@ -31,51 +24,40 @@ body{
     border-radius:15px;
 }
 .cell{
-    width:55px;
-    height:55px;
+    width:55px;height:55px;
     background:white;
     border-radius:12px;
 }
-.filled{
-    border-radius:12px;
-}
-.plus{
-    position:absolute;
-    font-size:28px;
-    font-weight:bold;
-    color:#27ae60;
-    animation:floatUp 0.8s ease-out forwards;
-}
-@keyframes floatUp{
-    from{opacity:1; transform:translateY(0);}
-    to{opacity:0; transform:translateY(-40px);}
-}
-button{
-    margin:8px;
-    padding:6px 12px;
-}
+.filled{ border-radius:12px; }
+button{ margin:5px;padding:6px 10px; }
+.selected{ background:#ffeaa7; }
 </style>
 </head>
 <body>
 
 <div id="game">
     <div id="score">0</div>
-    <button onclick="mode='ai'">AI</button>
-    <button onclick="mode='stop'">STOP</button>
+    <button onclick="setAI()">AI</button>
+    <button onclick="setManual()">MANUAL</button>
+    <button onclick="hold()">HOLD</button>
     <div id="board"></div>
+    <div id="pieces"></div>
     <div id="status"></div>
 </div>
 
 <script>
-const size = 8;
-let board = [];
-let pieces = [];
-let score = 0;
-let combo = 0;
-let mode = "ai";
-let aiRunning = false;
+const size=8;
+let board=[];
+let pieces=[];
+let holdPiece=null;
+let holdUsed=false;
+let score=0;
+let combo=0;
+let mode="ai";
+let selected=null;
+let aiBusy=false;
 
-const shapes = [
+const shapes=[
 [[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
 [[1],[1]],[[1],[1],[1]],
 [[1,1],[1,1]],
@@ -84,131 +66,184 @@ const shapes = [
 ];
 
 function init(){
-    board = Array(size).fill().map(()=>Array(size).fill(0));
-    score = 0;
-    combo = 0;
-    generatePieces();
+    board=Array(size).fill().map(()=>Array(size).fill(0));
+    score=0;combo=0;
+    holdPiece=null;
+    holdUsed=false;
+    generate();
     draw();
-    updateScoreDisplay(0);
 }
-
 function randomColor(){
     return `hsl(${Math.random()*360},70%,60%)`;
 }
-
-function generatePieces(){
-    pieces = [];
+function generate(){
+    pieces=[];
     for(let i=0;i<3;i++){
         pieces.push({
-            shape: shapes[Math.floor(Math.random()*shapes.length)],
-            color: randomColor()
+            shape:shapes[Math.floor(Math.random()*shapes.length)],
+            color:randomColor()
         });
     }
+    holdUsed=false;
 }
-
 function draw(){
-    const b = document.getElementById("board");
+    const b=document.getElementById("board");
     b.innerHTML="";
     for(let y=0;y<size;y++){
         for(let x=0;x<size;x++){
-            const c = document.createElement("div");
+            const c=document.createElement("div");
             c.className="cell";
             if(board[y][x]){
                 c.classList.add("filled");
-                c.style.background = board[y][x];
+                c.style.background=board[y][x];
             }
+            c.onclick=()=>{
+                if(mode==="manual"&&selected!==null)
+                    place(selected,y,x);
+            };
             b.appendChild(c);
         }
     }
+    drawPieces();
+    document.getElementById("score").innerText=score;
 }
-
+function drawPieces(){
+    const pDiv=document.getElementById("pieces");
+    pDiv.innerHTML="";
+    pieces.forEach((p,i)=>{
+        const btn=document.createElement("button");
+        btn.innerText="P"+(i+1);
+        if(i===selected) btn.classList.add("selected");
+        btn.onclick=()=>{ if(mode==="manual") selected=i; draw(); };
+        pDiv.appendChild(btn);
+    });
+    if(holdPiece){
+        const h=document.createElement("div");
+        h.innerText="HOLDあり";
+        pDiv.appendChild(h);
+    }
+}
 function canPlace(shape,y,x,temp=board){
     for(let dy=0;dy<shape.length;dy++){
         for(let dx=0;dx<shape[0].length;dx++){
             if(shape[dy][dx]){
-                if(y+dy>=size || x+dx>=size || temp[y+dy][x+dx])
-                    return false;
+                if(y+dy>=size||x+dx>=size||temp[y+dy][x+dx]) return false;
             }
         }
     }
     return true;
 }
-
-function simulate(temp,obj,y,x){
+function simulate(temp,p,y,x){
     let placed=0;
-    for(let dy=0;dy<obj.shape.length;dy++){
-        for(let dx=0;dx<obj.shape[0].length;dx++){
-            if(obj.shape[dy][dx]){
+    for(let dy=0;dy<p.shape.length;dy++){
+        for(let dx=0;dx<p.shape[0].length;dx++){
+            if(p.shape[dy][dx]){
                 temp[y+dy][x+dx]=1;
                 placed++;
             }
         }
     }
-
     let lines=0;
     for(let i=0;i<size;i++){
         if(temp[i].every(v=>v)){
-            lines++;
-            temp[i].fill(0);
+            lines++; temp[i].fill(0);
         }
         if(temp.map(r=>r[i]).every(v=>v)){
-            lines++;
-            for(let j=0;j<size;j++) temp[j][i]=0;
+            lines++; for(let j=0;j<size;j++) temp[j][i]=0;
         }
     }
-
     return {placed,lines};
 }
-
-function evaluate(temp){
-    let blocks=0;
-    for(let y=0;y<size;y++)
-        for(let x=0;x<size;x++)
-            if(temp[y][x]) blocks++;
-    return blocks;
+function evaluate(temp,totalLines){
+    let filled=0,holes=0;
+    for(let y=0;y<size;y++){
+        for(let x=0;x<size;x++){
+            if(temp[y][x]) filled++;
+            else{
+                let adj=0;
+                if(y>0&&temp[y-1][x]) adj++;
+                if(x>0&&temp[y][x-1]) adj++;
+                if(y<size-1&&temp[y+1][x]) adj++;
+                if(x<size-1&&temp[y][x+1]) adj++;
+                if(adj>=3) holes++;
+            }
+        }
+    }
+    return filled + holes*3 - totalLines*50;
 }
-
-function showPlus(points){
-    const plus = document.createElement("div");
-    plus.className="plus";
-    plus.innerText="+"+points;
-    plus.style.left="50%";
-    plus.style.transform="translateX(-50%)";
-    plus.style.top="20px";
-    document.getElementById("game").appendChild(plus);
-    setTimeout(()=>plus.remove(),800);
+function place(index,y,x){
+    const p=pieces[index];
+    if(!canPlace(p.shape,y,x)) return;
+    let gained=0;
+    for(let dy=0;dy<p.shape.length;dy++){
+        for(let dx=0;dx<p.shape[0].length;dx++){
+            if(p.shape[dy][dx]){
+                board[y+dy][x+dx]=p.color;
+                gained++;
+            }
+        }
+    }
+    let lines=0;
+    for(let i=0;i<size;i++){
+        if(board[i].every(v=>v)){
+            lines++; board[i].fill(0);
+        }
+        if(board.map(r=>r[i]).every(v=>v)){
+            lines++; for(let j=0;j<size;j++) board[j][i]=0;
+        }
+    }
+    if(lines>0){
+        combo++;
+        gained+=lines*150+combo*100;
+    }else combo=0;
+    if(board.flat().every(v=>!v)) gained+=2000;
+    score+=gained;
+    pieces.splice(index,1);
+    if(pieces.length===0) generate();
+    selected=null;
+    draw();
 }
-
-function updateScoreDisplay(points){
-    if(points>0) showPlus(points);
-    score += points;
-    document.getElementById("score").innerText = score;
+function hold(){
+    if(holdUsed) return;
+    if(selected===null) return;
+    let temp=pieces[selected];
+    if(holdPiece){
+        pieces[selected]=holdPiece;
+        holdPiece=temp;
+    }else{
+        holdPiece=temp;
+        pieces.splice(selected,1);
+        if(pieces.length===0) generate();
+    }
+    selected=null;
+    holdUsed=true;
+    draw();
 }
+function setAI(){ mode="ai"; aiTurn(); }
+function setManual(){ mode="manual"; }
 
 function aiTurn(){
-    if(mode!=="ai" || aiRunning) return;
-    aiRunning=true;
-
+    if(mode!=="ai"||aiBusy) return;
+    aiBusy=true;
     setTimeout(()=>{
-
-        let best=null;
-        let bestValue=Infinity;
+        let bestMove=null;
+        let bestScore=Infinity;
         const perms=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
-
         for(let p of perms){
             let temp=JSON.parse(JSON.stringify(board));
             let totalLines=0;
+            let moves=[];
             let valid=true;
-
             for(let idx of p){
                 let placed=false;
                 for(let y=0;y<size;y++){
                     for(let x=0;x<size;x++){
                         if(canPlace(pieces[idx].shape,y,x,temp)){
                             let sim=JSON.parse(JSON.stringify(temp));
-                            let {lines}=simulate(sim,pieces[idx],y,x);
+                            let r=simulate(sim,pieces[idx],y,x);
                             temp=sim;
-                            totalLines+=lines;
+                            totalLines+=r.lines;
+                            moves.push({idx,y,x});
                             placed=true;
                             break;
                         }
@@ -217,65 +252,25 @@ function aiTurn(){
                 }
                 if(!placed){ valid=false; break; }
             }
-
             if(!valid) continue;
-
-            let value=evaluate(temp)-totalLines*20;
-
-            if(value===0){
-                best=p;
-                break;
-            }
-
-            if(value<bestValue){
-                bestValue=value;
-                best=p;
+            let val=evaluate(temp,totalLines);
+            if(val<bestScore){
+                bestScore=val;
+                bestMove=moves;
             }
         }
-
-        if(!best){
-            document.getElementById("status").innerText="Game Over";
-            aiRunning=false;
+        if(!bestMove){
+            document.getElementById("status").innerText="GAME OVER";
+            aiBusy=false;
             return;
         }
-
-        let gained=0;
-
-        for(let idx of best){
-            for(let y=0;y<size;y++){
-                for(let x=0;x<size;x++){
-                    if(canPlace(pieces[idx].shape,y,x)){
-                        let {placed,lines}=simulate(board,pieces[idx],y,x);
-                        gained += placed;
-
-                        if(lines>0){
-                            combo++;
-                            gained += lines*100 + combo*50;
-                        }else{
-                            combo=0;
-                        }
-                        break;
-                    }
-                }
-                break;
-            }
+        for(let m of bestMove){
+            place(m.idx,m.y,m.x);
         }
-
-        if(board.flat().every(v=>!v)){
-            gained+=1000;
-        }
-
-        updateScoreDisplay(gained);
-
-        generatePieces();
-        draw();
-
-        aiRunning=false;
+        aiBusy=false;
         aiTurn();
-
-    },800);
+    },200);
 }
-
 init();
 aiTurn();
 </script>
