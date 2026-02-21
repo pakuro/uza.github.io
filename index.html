@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Block Blast Ultimate</title>
+<title>Block Blast 最強AI</title>
 <style>
 body{
     margin:0;
@@ -12,10 +12,7 @@ body{
     align-items:center;
     height:100vh;
     font-family:sans-serif;
-    touch-action:none;
 }
-#container{text-align:center;}
-
 #board{
     display:grid;
     grid-template-columns:repeat(8,55px);
@@ -29,82 +26,52 @@ body{
     height:55px;
     background:white;
     border-radius:12px;
-    transition:0.1s;
 }
 .filled{border-radius:12px;}
-.highlight{background:#b8ffb8 !important;}
-.invalid{background:#ffb8b8 !important;}
-
-#pieces{margin-top:20px;}
-.piece{
-    display:inline-block;
-    margin:12px;
-}
-.block{
-    width:18px;
-    height:18px;
-    display:inline-block;
-    border-radius:5px;
-}
-
-.dragging{
-    position:fixed;
-    pointer-events:none;
-    z-index:999;
-    transform:scale(3);
-    transform-origin:top left;
-    filter:drop-shadow(0 8px 14px rgba(0,0,0,0.3));
-    opacity:0.95;
-}
-
-.bounce{
-    animation:bounce 0.25s;
-}
-@keyframes bounce{
-    0%{transform:scale(1);}
-    50%{transform:scale(1.2);}
-    100%{transform:scale(1);}
-}
-
-button{margin:5px;padding:6px 12px;}
 </style>
 </head>
 <body>
-<div id="container">
-<h2>Block Blast</h2>
-<button onclick="mode='player'">プレイヤー</button>
+
+<div>
+<h2>最強AI Block Blast</h2>
+<div>Score: <span id="score">0</span></div>
+<button onclick="mode='player'">Player</button>
 <button onclick="mode='ai'">AI</button>
 <div id="board"></div>
-<div id="pieces"></div>
-<h3 id="status"></h3>
+<div id="status"></div>
 </div>
 
 <script>
 const size=8;
 let board=[];
 let pieces=[];
-let mode="player";
-let draggingIndex=null;
-let dragElement=null;
-let aiThinking=false;
+let score=0;
+let combo=0;
+let mode="ai";
 
-const shapes=[
-[[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
-[[1],[1]],[[1],[1],[1]],
-[[1,1],[1,1]],
-[[1,0],[1,1]],
-[[1,1,0],[0,1,1]],
-[[1,1,1],[0,1,0]]
-];
+const shapes=[[[1]],[[1,1]],[[1,1,1]],[[1],[1]],[[1],[1],[1]],
+[[1,1],[1,1]],[[1,0],[1,1]],[[1,1,1],[0,1,0]]];
+
+function init(){
+    board=Array(size).fill().map(()=>Array(size).fill(0));
+    score=0;
+    combo=0;
+    generatePieces();
+    draw();
+}
 
 function randomColor(){
     return `hsl(${Math.random()*360},70%,60%)`;
 }
 
-function init(){
-    board=Array(size).fill().map(()=>Array(size).fill(0));
-    generatePieces();
-    draw();
+function generatePieces(){
+    pieces=[];
+    for(let i=0;i<3;i++){
+        pieces.push({
+            shape:shapes[Math.floor(Math.random()*shapes.length)],
+            color:randomColor()
+        });
+    }
 }
 
 function draw(){
@@ -118,249 +85,136 @@ function draw(){
                 c.classList.add("filled");
                 c.style.background=board[y][x];
             }
-            c.dataset.y=y;
-            c.dataset.x=x;
             b.appendChild(c);
         }
     }
+    document.getElementById("score").innerText=score;
 }
 
-function drawPieces(){
-    const p=document.getElementById("pieces");
-    p.innerHTML="";
-    pieces.forEach((obj,i)=>{
-        const div=document.createElement("div");
-        div.className="piece";
-        div.dataset.index=i;
-
-        obj.shape.forEach(row=>{
-            const r=document.createElement("div");
-            row.forEach(cell=>{
-                const b=document.createElement("div");
-                b.className="block";
-                if(cell) b.style.background=obj.color;
-                r.appendChild(b);
-            });
-            div.appendChild(r);
-        });
-
-        div.addEventListener("touchstart",startDrag);
-        div.addEventListener("mousedown",startDrag);
-        p.appendChild(div);
-    });
-}
-
-/* ==== ドラッグ ==== */
-
-function startDrag(e){
-    if(mode!=="player") return;
-    draggingIndex=parseInt(e.currentTarget.dataset.index);
-
-    dragElement=e.currentTarget.cloneNode(true);
-    dragElement.classList.add("dragging");
-    document.body.appendChild(dragElement);
-
-    moveDrag(e);
-
-    document.addEventListener("touchmove",moveDrag);
-    document.addEventListener("mousemove",moveDrag);
-    document.addEventListener("touchend",endDrag);
-    document.addEventListener("mouseup",endDrag);
-}
-
-function moveDrag(e){
-    if(!dragElement) return;
-    let touch=e.touches?e.touches[0]:e;
-    dragElement.style.left=(touch.clientX-40)+"px";
-    dragElement.style.top=(touch.clientY-40)+"px";
-
-    highlight(touch.clientX,touch.clientY);
-}
-
-function endDrag(e){
-    if(!dragElement) return;
-
-    let touch=e.changedTouches?e.changedTouches[0]:e;
-    let element=document.elementFromPoint(touch.clientX,touch.clientY);
-
-    clearHighlight();
-
-    if(element && element.classList.contains("cell")){
-        let y=parseInt(element.dataset.y);
-        let x=parseInt(element.dataset.x);
-        let obj=pieces[draggingIndex];
-        if(canPlace(obj.shape,y,x)){
-            place(obj,y,x);
-            pieces.splice(draggingIndex,1);
-            if(pieces.length===0) generatePieces();
-            update();
-        }
-    }
-
-    dragElement.remove();
-    dragElement=null;
-    draggingIndex=null;
-
-    document.removeEventListener("touchmove",moveDrag);
-    document.removeEventListener("mousemove",moveDrag);
-    document.removeEventListener("touchend",endDrag);
-    document.removeEventListener("mouseup",endDrag);
-}
-
-/* ==== ハイライト ==== */
-
-function highlight(px,py){
-    clearHighlight();
-    let element=document.elementFromPoint(px,py);
-    if(!element || !element.classList.contains("cell")) return;
-
-    let y=parseInt(element.dataset.y);
-    let x=parseInt(element.dataset.x);
-    let obj=pieces[draggingIndex];
-
-    let valid=canPlace(obj.shape,y,x);
-
-    for(let dy=0;dy<obj.shape.length;dy++){
-        for(let dx=0;dx<obj.shape[0].length;dx++){
-            if(obj.shape[dy][dx]){
-                let ny=y+dy,nx=x+dx;
-                if(ny<size && nx<size){
-                    let cell=document.querySelector(`[data-y='${ny}'][data-x='${nx}']`);
-                    if(cell) cell.classList.add(valid?"highlight":"invalid");
-                }
-            }
-        }
-    }
-}
-
-function clearHighlight(){
-    document.querySelectorAll(".highlight,.invalid")
-        .forEach(c=>c.classList.remove("highlight","invalid"));
-}
-
-/* ==== ロジック ==== */
-
-function canPlace(shape,y,x){
-    for(let dy=0;dy<shape.length;dy++){
-        for(let dx=0;dx<shape[0].length;dx++){
+function canPlace(shape,y,x,temp=board){
+    for(let dy=0;dy<shape.length;dy++)
+        for(let dx=0;dx<shape[0].length;dx++)
             if(shape[dy][dx]){
-                if(y+dy>=size||x+dx>=size||board[y+dy][x+dx])
+                if(y+dy>=size||x+dx>=size||temp[y+dy][x+dx])
                     return false;
             }
-        }
-    }
     return true;
 }
 
-function place(obj,y,x){
-    for(let dy=0;dy<obj.shape.length;dy++){
-        for(let dx=0;dx<obj.shape[0].length;dx++){
+function simulate(temp,obj,y,x){
+    let placed=0;
+    for(let dy=0;dy<obj.shape.length;dy++)
+        for(let dx=0;dx<obj.shape[0].length;dx++)
             if(obj.shape[dy][dx]){
-                board[y+dy][x+dx]=obj.color;
-                let cell=document.querySelector(`[data-y='${y+dy}'][data-x='${x+dx}']`);
-                if(cell) cell.classList.add("bounce");
+                temp[y+dy][x+dx]=1;
+                placed++;
             }
-        }
-    }
-    clearLines();
-}
 
-function clearLines(){
+    let lines=0;
     for(let i=0;i<size;i++){
-        if(board[i].every(v=>v)) board[i].fill(0);
-        if(board.map(r=>r[i]).every(v=>v)){
-            for(let j=0;j<size;j++) board[j][i]=0;
+        if(temp[i].every(v=>v)){
+            lines++;
+            temp[i].fill(0);
+        }
+        if(temp.map(r=>r[i]).every(v=>v)){
+            lines++;
+            for(let j=0;j<size;j++) temp[j][i]=0;
         }
     }
+
+    return {placed,lines};
 }
 
-function generatePieces(){
-    pieces=[];
-    for(let i=0;i<3;i++){
-        let shape=shapes[Math.floor(Math.random()*shapes.length)];
-        pieces.push({shape:shape,color:randomColor()});
-    }
-    drawPieces();
+function evaluate(temp){
+    let blocks=0;
+    for(let y=0;y<size;y++)
+        for(let x=0;x<size;x++)
+            if(temp[y][x]) blocks++;
+    return blocks;
 }
-
-function update(){
-    draw();
-    drawPieces();
-    if(!anyMove()) gameOver();
-}
-
-function anyMove(){
-    for(let obj of pieces){
-        for(let y=0;y<size;y++){
-            for(let x=0;x<size;x++){
-                if(canPlace(obj.shape,y,x)) return true;
-            }
-        }
-    }
-    return false;
-}
-
-function gameOver(){
-    document.getElementById("status").innerText="ゲームオーバー";
-    mode="stop";
-}
-
-/* ==== 強化AI ==== */
 
 function aiMove(){
-    if(mode!=="ai"||aiThinking) return;
-    aiThinking=true;
+    if(mode!=="ai") return;
 
-    setTimeout(()=>{
-        let best=null;
-        let min=Infinity;
+    let best=null;
+    let bestValue=Infinity;
 
-        for(let i=0;i<pieces.length;i++){
+    const perms=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+
+    for(let p of perms){
+        let temp=JSON.parse(JSON.stringify(board));
+        let totalLines=0;
+        let valid=true;
+
+        for(let idx of p){
+            let moveFound=false;
             for(let y=0;y<size;y++){
                 for(let x=0;x<size;x++){
-                    if(canPlace(pieces[i].shape,y,x)){
-                        let temp=JSON.parse(JSON.stringify(board));
-                        for(let dy=0;dy<pieces[i].shape.length;dy++){
-                            for(let dx=0;dx<pieces[i].shape[0].length;dx++){
-                                if(pieces[i].shape[dy][dx])
-                                    temp[y+dy][x+dx]=1;
-                            }
-                        }
-                        for(let k=0;k<size;k++){
-                            if(temp[k].every(v=>v)) temp[k].fill(0);
-                            if(temp.map(r=>r[k]).every(v=>v)){
-                                for(let j=0;j<size;j++) temp[j][k]=0;
-                            }
-                        }
-                        let count=0;
-                        for(let r of temp)
-                            for(let c of r)
-                                if(c) count++;
-
-                        if(count<min){
-                            min=count;
-                            best={i,y,x};
-                        }
+                    if(canPlace(pieces[idx].shape,y,x,temp)){
+                        let sim=JSON.parse(JSON.stringify(temp));
+                        let {lines}=simulate(sim,pieces[idx],y,x);
+                        temp=sim;
+                        totalLines+=lines;
+                        moveFound=true;
+                        break;
                     }
                 }
+                if(moveFound) break;
             }
+            if(!moveFound){ valid=false; break; }
         }
 
-        if(best){
-            place(pieces[best.i],best.y,best.x);
-            pieces.splice(best.i,1);
-            if(pieces.length===0) generatePieces();
-            update();
-        }
+        if(!valid) continue;
 
-        aiThinking=false;
-    },700);
+        let value=evaluate(temp)-totalLines*20;
+
+        if(value===0){ best=p; break; }
+
+        if(value<bestValue){
+            bestValue=value;
+            best=p;
+        }
+    }
+
+    if(!best){
+        document.getElementById("status").innerText="Game Over";
+        return;
+    }
+
+    for(let idx of best){
+        for(let y=0;y<size;y++){
+            for(let x=0;x<size;x++){
+                if(canPlace(pieces[idx].shape,y,x)){
+                    let {placed,lines}=simulate(board,pieces[idx],y,x);
+
+                    score+=placed;
+                    if(lines>0){
+                        combo++;
+                        score+=lines*100 + combo*50;
+                    }else{
+                        combo=0;
+                    }
+
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    if(board.flat().every(v=>!v)){
+        score+=1000;
+    }
+
+    generatePieces();
+    draw();
 }
 
 setInterval(aiMove,800);
 
 init();
-drawPieces();
+draw();
 </script>
+
 </body>
 </html>
