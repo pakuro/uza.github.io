@@ -2,11 +2,11 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Block Blast Touch</title>
+<title>Block Blast Ultimate</title>
 <style>
 body{
     margin:0;
-    background:#f5f6fa;
+    background:#f4f6fb;
     display:flex;
     justify-content:center;
     align-items:center;
@@ -15,41 +15,57 @@ body{
     touch-action:none;
 }
 #container{text-align:center;}
+
 #board{
     display:grid;
-    grid-template-columns:repeat(8,50px);
-    gap:5px;
+    grid-template-columns:repeat(8,55px);
+    gap:6px;
     background:#dcdde1;
-    padding:10px;
-    border-radius:12px;
+    padding:12px;
+    border-radius:15px;
 }
 .cell{
-    width:50px;
-    height:50px;
+    width:55px;
+    height:55px;
     background:white;
-    border-radius:10px;
+    border-radius:12px;
+    transition:0.1s;
 }
-.filled{border-radius:10px;}
+.filled{border-radius:12px;}
+.highlight{background:#b8ffb8 !important;}
+.invalid{background:#ffb8b8 !important;}
 
 #pieces{margin-top:20px;}
 .piece{
     display:inline-block;
-    margin:10px;
-    position:relative;
+    margin:12px;
 }
 .block{
     width:18px;
     height:18px;
     display:inline-block;
-    border-radius:4px;
+    border-radius:5px;
 }
 
 .dragging{
     position:fixed;
     pointer-events:none;
-    opacity:0.9;
     z-index:999;
+    transform:scale(3);
+    transform-origin:top left;
+    filter:drop-shadow(0 8px 14px rgba(0,0,0,0.3));
+    opacity:0.95;
 }
+
+.bounce{
+    animation:bounce 0.25s;
+}
+@keyframes bounce{
+    0%{transform:scale(1);}
+    50%{transform:scale(1.2);}
+    100%{transform:scale(1);}
+}
+
 button{margin:5px;padding:6px 12px;}
 </style>
 </head>
@@ -70,14 +86,11 @@ let pieces=[];
 let mode="player";
 let draggingIndex=null;
 let dragElement=null;
+let aiThinking=false;
 
 const shapes=[
-[[1]],
-[[1,1]],
-[[1,1,1]],
-[[1,1,1,1]],
-[[1],[1]],
-[[1],[1],[1]],
+[[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
+[[1],[1]],[[1],[1],[1]],
 [[1,1],[1,1]],
 [[1,0],[1,1]],
 [[1,1,0],[0,1,1]],
@@ -133,14 +146,14 @@ function drawPieces(){
 
         div.addEventListener("touchstart",startDrag);
         div.addEventListener("mousedown",startDrag);
-
         p.appendChild(div);
     });
 }
 
+/* ==== ドラッグ ==== */
+
 function startDrag(e){
     if(mode!=="player") return;
-
     draggingIndex=parseInt(e.currentTarget.dataset.index);
 
     dragElement=e.currentTarget.cloneNode(true);
@@ -158,8 +171,10 @@ function startDrag(e){
 function moveDrag(e){
     if(!dragElement) return;
     let touch=e.touches?e.touches[0]:e;
-    dragElement.style.left=touch.clientX-30+"px";
-    dragElement.style.top=touch.clientY-30+"px";
+    dragElement.style.left=(touch.clientX-40)+"px";
+    dragElement.style.top=(touch.clientY-40)+"px";
+
+    highlight(touch.clientX,touch.clientY);
 }
 
 function endDrag(e){
@@ -167,6 +182,8 @@ function endDrag(e){
 
     let touch=e.changedTouches?e.changedTouches[0]:e;
     let element=document.elementFromPoint(touch.clientX,touch.clientY);
+
+    clearHighlight();
 
     if(element && element.classList.contains("cell")){
         let y=parseInt(element.dataset.y);
@@ -190,6 +207,39 @@ function endDrag(e){
     document.removeEventListener("mouseup",endDrag);
 }
 
+/* ==== ハイライト ==== */
+
+function highlight(px,py){
+    clearHighlight();
+    let element=document.elementFromPoint(px,py);
+    if(!element || !element.classList.contains("cell")) return;
+
+    let y=parseInt(element.dataset.y);
+    let x=parseInt(element.dataset.x);
+    let obj=pieces[draggingIndex];
+
+    let valid=canPlace(obj.shape,y,x);
+
+    for(let dy=0;dy<obj.shape.length;dy++){
+        for(let dx=0;dx<obj.shape[0].length;dx++){
+            if(obj.shape[dy][dx]){
+                let ny=y+dy,nx=x+dx;
+                if(ny<size && nx<size){
+                    let cell=document.querySelector(`[data-y='${ny}'][data-x='${nx}']`);
+                    if(cell) cell.classList.add(valid?"highlight":"invalid");
+                }
+            }
+        }
+    }
+}
+
+function clearHighlight(){
+    document.querySelectorAll(".highlight,.invalid")
+        .forEach(c=>c.classList.remove("highlight","invalid"));
+}
+
+/* ==== ロジック ==== */
+
 function canPlace(shape,y,x){
     for(let dy=0;dy<shape.length;dy++){
         for(let dx=0;dx<shape[0].length;dx++){
@@ -205,8 +255,11 @@ function canPlace(shape,y,x){
 function place(obj,y,x){
     for(let dy=0;dy<obj.shape.length;dy++){
         for(let dx=0;dx<obj.shape[0].length;dx++){
-            if(obj.shape[dy][dx])
+            if(obj.shape[dy][dx]){
                 board[y+dy][x+dx]=obj.color;
+                let cell=document.querySelector(`[data-y='${y+dy}'][data-x='${x+dx}']`);
+                if(cell) cell.classList.add("bounce");
+            }
         }
     }
     clearLines();
@@ -252,24 +305,59 @@ function gameOver(){
     mode="stop";
 }
 
-/* AI */
+/* ==== 強化AI ==== */
+
 function aiMove(){
-    if(mode!=="ai") return;
-    for(let i=0;i<pieces.length;i++){
-        for(let y=0;y<size;y++){
-            for(let x=0;x<size;x++){
-                if(canPlace(pieces[i].shape,y,x)){
-                    place(pieces[i],y,x);
-                    pieces.splice(i,1);
-                    if(pieces.length===0) generatePieces();
-                    update();
-                    return;
+    if(mode!=="ai"||aiThinking) return;
+    aiThinking=true;
+
+    setTimeout(()=>{
+        let best=null;
+        let min=Infinity;
+
+        for(let i=0;i<pieces.length;i++){
+            for(let y=0;y<size;y++){
+                for(let x=0;x<size;x++){
+                    if(canPlace(pieces[i].shape,y,x)){
+                        let temp=JSON.parse(JSON.stringify(board));
+                        for(let dy=0;dy<pieces[i].shape.length;dy++){
+                            for(let dx=0;dx<pieces[i].shape[0].length;dx++){
+                                if(pieces[i].shape[dy][dx])
+                                    temp[y+dy][x+dx]=1;
+                            }
+                        }
+                        for(let k=0;k<size;k++){
+                            if(temp[k].every(v=>v)) temp[k].fill(0);
+                            if(temp.map(r=>r[k]).every(v=>v)){
+                                for(let j=0;j<size;j++) temp[j][k]=0;
+                            }
+                        }
+                        let count=0;
+                        for(let r of temp)
+                            for(let c of r)
+                                if(c) count++;
+
+                        if(count<min){
+                            min=count;
+                            best={i,y,x};
+                        }
+                    }
                 }
             }
         }
-    }
+
+        if(best){
+            place(pieces[best.i],best.y,best.x);
+            pieces.splice(best.i,1);
+            if(pieces.length===0) generatePieces();
+            update();
+        }
+
+        aiThinking=false;
+    },700);
 }
-setInterval(aiMove,700);
+
+setInterval(aiMove,800);
 
 init();
 drawPieces();
