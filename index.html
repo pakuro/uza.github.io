@@ -1,25 +1,253 @@
-// ================================
-// Poki版スコア計算を再現
-// - ブロックサイズ加算
-// - 1ライン消去10点
-// - 同時消しボーナス
-// - 連鎖（コンボ）ボーナス
-// ================================
-let comboCount = 0; // グローバル: 3手以内の連続消去用
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Block Blast — Poki Style</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+:root{ --cell:52px; --gap:6px; }
+body{
+  margin:0; background:#eef6ff; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "メイリオ", sans-serif;
+  display:flex; justify-content:center; align-items:flex-start; padding:28px;
+}
+#wrap{
+  width:1040px; background:white; border-radius:14px; box-shadow:0 12px 40px rgba(10,20,60,0.12); padding:18px;
+}
+.header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+.header-left{ display:flex; gap:10px; align-items:center; }
+#score{ font-weight:800; font-size:22px; color:#0f172a; }
+.controls button{
+  background:#2b8af6; color:white; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700;
+}
+.controls button.secondary{ background:#94a3b8; }
+.controls button.ghost{ background:transparent; color:#0f172a; border:1px solid #e2e8f0; }
+.board-wrap{ display:flex; gap:18px; align-items:flex-start; }
+#board{
+  width: calc(var(--cell)*9 + var(--gap)*8 + 24px);
+  display:grid;
+  grid-template-columns:repeat(9,var(--cell));
+  gap:var(--gap);
+  background:#e8f1ff; padding:12px; border-radius:12px;
+  position:relative;
+}
+.cell{
+  width:var(--cell); height:var(--cell); background:#fbfdff; border-radius:12px; position:relative;
+  display:flex; justify-content:center; align-items:center; cursor:pointer; user-select:none;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.8);
+}
+.piece-block{
+  width:calc(100% - 8px); height:calc(100% - 8px); border-radius:10px;
+  box-shadow:
+    inset 0 -6px 10px rgba(0,0,0,0.18),
+    inset 0 6px 8px rgba(255,255,255,0.35),
+    0 6px 18px rgba(12,24,60,0.08);
+}
+.hud{ width:360px; display:flex; flex-direction:column; gap:12px; }
+.pieces-list{ display:flex; gap:10px; align-items:center; justify-content:center; }
+.piecePreview{
+  display:inline-grid; gap:4px; padding:8px; border-radius:10px; cursor:pointer; background:#f8fbff; min-width:82px;
+  align-items:center; justify-items:center;
+}
+.piecePreview.selected{ outline:3px solid rgba(255,159,28,0.25); }
+.mini{ width:18px; height:18px; border-radius:4px; box-shadow: inset 0 2px 0 rgba(255,255,255,0.6); }
+.info{ font-size:13px; color:#475569; }
+.previewOverlay{ position:absolute; pointer-events:none; transition:all .18s; }
+.previewCell{
+  width:var(--cell); height:var(--cell); border-radius:12px; position:absolute; transform:translate(-50%,-50%); opacity:.9;
+  box-shadow:0 8px 20px rgba(8,20,60,0.12);
+  border:3px solid rgba(255,255,255,0.12);
+}
+.bigNote{ font-weight:800; color:#0f172a; font-size:16px; }
+.streak{ font-weight:800; color:#b45309; font-size:14px; }
+.footer{ margin-top:12px; display:flex; justify-content:space-between; color:#64748b; font-size:13px; }
+.badge{ font-weight:700; color:#0b1220; background:#fff1cc; padding:6px 8px; border-radius:8px; }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div class="header">
+      <div class="header-left">
+        <div id="score">SCORE: 0</div>
+        <div style="width:12px"></div>
+        <div class="bigNote" id="aiLabel">Mode: MANUAL</div>
+        <div style="width:12px"></div>
+        <div class="streak" id="streakLabel">Combo: 0</div>
+      </div>
+      <div class="controls">
+        <button id="manualBtn" class="secondary">MANUAL</button>
+        <button id="aiBtn">AI</button>
+        <button id="replayBtn" class="ghost">Replay last AI</button>
+      </div>
+    </div>
 
-function applyPlaceAndScore(piece, y, x){
-  if(!canPlace(piece.shape,y,x,board)) return null;
+    <div class="board-wrap">
+      <div id="board"></div>
 
-  const placedCount = countPieceCells(piece); // ブロックのセル数
-  // 盤面に色を置く
-  for(let dy=0; dy<piece.shape.length; dy++){
-    for(let dx=0; dx<piece.shape[0].length; dx++){
-      if(piece.shape[dy][dx]) board[y+dy][x+dx] = piece.color;
+      <div class="hud">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="info">Hand pieces (drag to place)</div>
+          <div class="badge" id="evalInfo">Beam: 60 | Depth:3</div>
+        </div>
+        <div id="pieces" class="pieces-list"></div>
+        <div class="info" id="predictionInfo">AI prediction: —</div>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button id="showPlan" class="secondary">Show plan</button>
+          <button id="speedUp" class="secondary">Speed ×1</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Block Blast — Poki Style</div>
+      <div id="author">Make friends think you're a genius ✨</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+const size = 9;
+const colorPalette = ["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
+const shapes = [
+  [[1]], [[1,1]], [[1,1,1]], [[1,1,1,1]],
+  [[1],[1]], [[1],[1],[1]], [[1,1],[1,1]],
+  [[1,0],[1,1]], [[1,1,1],[0,1,0]],
+  [[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]] // 5x5
+];
+
+let board = [];
+let pieces = [];
+let score = 0;
+let mode = "manual";
+let selected = null;
+let aiBusy = false;
+let lastPlan = null;
+let comboCount = 0;
+
+// DOM
+const boardEl = document.getElementById('board');
+const piecesEl = document.getElementById('pieces');
+const scoreEl = document.getElementById('score');
+const predictionInfo = document.getElementById('predictionInfo');
+const streakLabel = document.getElementById('streakLabel');
+const aiLabel = document.getElementById('aiLabel');
+
+// helpers
+const deepCopyGrid = g=>g.map(r=>r.slice());
+const randColor = ()=>colorPalette[Math.floor(Math.random()*colorPalette.length)];
+const countPieceCells = piece=>piece.shape.flat().filter(v=>v).length;
+
+// init
+function init(){
+  board = Array(size).fill().map(()=>Array(size).fill(0));
+  score = 0; selected = null; aiBusy = false; lastPlan = null; comboCount=0;
+  generateHand();
+  drawAll();
+}
+
+function generateHand(){
+  pieces = [];
+  for(let i=0;i<3;i++){
+    pieces.push({ shape: shapes[Math.floor(Math.random()*shapes.length)], color: randColor() });
+  }
+}
+
+function drawBoard(){
+  boardEl.innerHTML='';
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const c=document.createElement('div'); c.className='cell';
+      if(board[y][x]){
+        const b=document.createElement('div'); b.className='piece-block';
+        b.style.background=board[y][x]; c.appendChild(b);
+      }
+      boardEl.appendChild(c);
+    }
+  }
+}
+
+function drawHand(){
+  piecesEl.innerHTML='';
+  pieces.forEach((p,i)=>{
+    const preview = document.createElement('div'); preview.className='piecePreview';
+    if(i===selected) preview.classList.add('selected');
+    const cols=p.shape[0].length;
+    const grid=document.createElement('div'); grid.style.display='grid';
+    grid.style.gridTemplateColumns=`repeat(${cols},18px)`; grid.style.gap='4px';
+    for(let ry=0;ry<p.shape.length;ry++){
+      for(let rx=0;rx<p.shape[0].length;rx++){
+        const m=document.createElement('div'); m.className='mini';
+        if(p.shape[ry][rx]) m.style.background=p.color;
+        grid.appendChild(m);
+      }
+    }
+    const label=document.createElement('div'); label.style.fontSize='12px'; label.style.fontWeight='700';
+    label.innerText=`P${i+1}`;
+    preview.appendChild(grid); preview.appendChild(label);
+    piecesEl.appendChild(preview);
+
+    // drag
+    preview.addEventListener('mousedown', (e)=>{
+      if(mode!=='manual') return;
+      const div = document.createElement('div');
+      div.className='piece-block';
+      div.style.background=p.color;
+      div.style.position='absolute';
+      div.style.left=e.clientX+'px';
+      div.style.top=e.clientY+'px';
+      div.style.width='52px';
+      div.style.height='52px';
+      div.style.opacity='0.6';
+      div.style.zIndex='999';
+      document.body.appendChild(div);
+      dragging={pieceIndex:i, div, offsetX:e.offsetX, offsetY:e.offsetY, piece:p};
+    });
+  });
+}
+
+let dragging = null;
+document.addEventListener('mousemove',(e)=>{
+  if(!dragging) return;
+  const div=dragging.div;
+  div.style.left=e.clientX-dragging.offsetX+'px';
+  div.style.top=e.clientY-dragging.offsetY+'px';
+});
+document.addEventListener('mouseup',(e)=>{
+  if(!dragging) return;
+  const x = Math.floor((e.clientX - boardEl.getBoundingClientRect().left)/(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell')) + 6));
+  const y = Math.floor((e.clientY - boardEl.getBoundingClientRect().top)/(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell')) + 6));
+  if(canPlace(dragging.piece.shape,y,x,board)){
+    applyPlaceAndScore(dragging.piece,y,x);
+    pieces.splice(dragging.pieceIndex,1);
+    if(pieces.length===0) generateHand();
+    drawAll();
+  }
+  dragging.div.remove(); dragging=null;
+});
+
+function canPlace(shape,y,x,grid){
+  for(let dy=0;dy<shape.length;dy++){
+    for(let dx=0;dx<shape[0].length;dx++){
+      if(shape[dy][dx]){
+        if(y+dy>=size||x+dx>=size) return false;
+        if(grid[y+dy][x+dx]) return false;
+      }
+    }
+  }
+  return true;
+}
+
+// ============================
+// Poki版スコア計算 + コンボ
+// ============================
+function applyPlaceAndScore(piece,y,x){
+  for(let dy=0;dy<piece.shape.length;dy++){
+    for(let dx=0;dx<piece.shape[0].length;dx++){
+      if(piece.shape[dy][dx]) board[y+dy][x+dx]=piece.color;
     }
   }
 
-  // ライン消去チェック
-  let lines = 0;
+  // ライン消去
+  let lines=0;
   for(let r=0;r<size;r++){
     if(board[r].every(v=>v)){ lines++; board[r].fill(0); }
   }
@@ -27,29 +255,25 @@ function applyPlaceAndScore(piece, y, x){
     if(board.map(row=>row[c]).every(v=>v)){ lines++; for(let r=0;r<size;r++) board[r][c]=0; }
   }
 
-  // ----------------------------
-  // スコア計算
-  // ----------------------------
-  let gained = placedCount;        // 基本：置いたブロックのセル数
-  if(lines > 0){
-    gained += lines * 10;         // 1ライン消去につき10点
-    if(lines >= 2){
-      gained += (lines-1)*20;     // 同時消しボーナス
-    }
-    // 連鎖（コンボ）管理
-    comboCount++;
-    gained += 20 + (comboCount-1)*10; // コンボボーナス
-  } else {
-    comboCount = 0;               // 消去なしでコンボリセット
-  }
+  let gained=countPieceCells(piece);
+  if(lines>0){
+    gained+=lines*10;
+    if(lines>=2) gained+=(lines-1)*20;
+    comboCount++; gained+=20+(comboCount-1)*10;
+  } else comboCount=0;
 
-  // 全消しボーナス（盤面が空になったら）
-  const remaining = board.flat().filter(Boolean).length;
-  if(remaining === 0){
-    gained += 500;  // 任意の全消しボーナス
-    flashAllClear();
-  }
+  const remaining=board.flat().filter(Boolean).length;
+  if(remaining===0) gained+=500;
 
-  score += gained; // スコア加算
-  return { lines, remaining };
+  score+=gained;
 }
+
+function drawAll(){ drawBoard(); drawHand(); scoreEl.innerText=`SCORE: ${score}`; streakLabel.innerText=`Combo: ${comboCount}`; }
+
+document.getElementById('manualBtn').addEventListener('click',()=>{mode='manual'; aiLabel.innerText='Mode: MANUAL';});
+document.getElementById('aiBtn').addEventListener('click',()=>{mode='ai'; aiLabel.innerText='Mode: AI';});
+init();
+})();
+</script>
+</body>
+</html>
