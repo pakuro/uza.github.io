@@ -1,236 +1,308 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>神AIブロック</title>
+<style>
+body{
+  font-family:sans-serif;
+  text-align:center;
+  background:#111;
+  color:white;
+}
+#board{
+  display:grid;
+  grid-template-columns:repeat(8,40px);
+  grid-gap:4px;
+  justify-content:center;
+  margin:20px auto;
+}
+.cell{
+  width:40px;
+  height:40px;
+  background:#222;
+  border-radius:6px;
+}
+#pieces button{
+  margin:5px;
+  padding:10px 20px;
+  font-size:16px;
+}
+#controls button{
+  margin:5px;
+  padding:8px 16px;
+}
+</style>
+</head>
+<body>
+
+<h1>神レベルAIブロック</h1>
+<div id="score">SCORE: 0</div>
+<div id="combo">Combo: 0</div>
+
+<div id="board"></div>
+<div id="pieces"></div>
+
+<div id="controls">
+  <button id="startBtn">リスタート</button>
+  <button id="aiBtn">AI ON/OFF</button>
+</div>
+
 <script>
 (() => {
 
-  // ====== 元の設定そのまま ======
-  const size = 8;
-  const colorPalette = ["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
+const size = 8;
+const colorPalette = ["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
 
-  const threeByThree = [
-    [1,1,1],
-    [1,1,1],
-    [1,1,1]
-  ];
+let board = [];
+let pieces = [];
+let score = 0;
+let combo = 0;
+let aiMode = false;
+let aiTimer = null;
 
-  const twoByThree = [
-    [1,1,1],
-    [1,1,1]
-  ];
+const boardEl = document.getElementById("board");
+const piecesEl = document.getElementById("pieces");
+const scoreEl = document.getElementById("score");
+const comboEl = document.getElementById("combo");
 
-  const baseShapes = [
-    [[1]], [[1,1]], [[1,1,1]], [[1,1,1,1]],
-    [[1],[1]], [[1],[1],[1]],
-    [[1,1],[1,1]], [[1,0],[1,1]], [[1,1,1],[0,1,0]]
-  ];
+const baseShapes = [
+ [[1]], [[1,1]], [[1,1,1]], [[1,1,1,1]],
+ [[1],[1]], [[1],[1],[1]],
+ [[1,1],[1,1]], [[1,0],[1,1]], [[1,1,1],[0,1,0]]
+];
 
-  const BEAM_WIDTH = 60;
-  const SEARCH_DEPTH = 3;
-  const TIME_LIMIT_MS = 700;
-  const ALLCLEAR_BONUS = 120000;
+function randColor(){
+ return colorPalette[Math.floor(Math.random()*colorPalette.length)];
+}
 
-  let comboCount = 0;
-  const LINE_POINT = 10;
-  const SIMULTANEOUS_BONUS_STEP = 20;
-  const COMBO_BASE = 20;
-  const ALLCLEAR_UI_BONUS = 500;
+function deepCopy(g){
+ return g.map(r=>r.slice());
+}
 
-  let board = [];
-  let pieces = [];
-  let score = 0;
-  let mode = "manual";
-  let aiBusy = false;
-  let lastPlan = null;
-  let allClearStreak = 0;
-
-  const boardEl = document.getElementById('board');
-  const piecesEl = document.getElementById('pieces');
-  const scoreEl = document.getElementById('score');
-  const predictionInfo = document.getElementById('predictionInfo');
-  const streakLabel = document.getElementById('streakLabel');
-  const aiLabel = document.getElementById('aiLabel');
-
-  const deepCopyGrid = g => g.map(r => r.slice());
-  const randColor = () => colorPalette[Math.floor(Math.random()*colorPalette.length)];
-  const countPieceCells = p => p.shape.flat().filter(v=>v).length;
-  const shapesEqual = (a,b)=>JSON.stringify(a)===JSON.stringify(b);
-  const isThreeByThree = p => p.shape.length===3 && p.shape[0].length===3 && p.shape.flat().every(v=>v===1);
-
-  // ====== 追加：置ける保証関数 ======
-  function hasAnyPlacement(piece, grid){
-    for(let y=0;y<size;y++){
-      for(let x=0;x<size;x++){
-        if(canPlace(piece.shape,y,x,grid)) return true;
-      }
-    }
-    return false;
+function canPlace(shape,y,x,g){
+ for(let dy=0;dy<shape.length;dy++){
+  for(let dx=0;dx<shape[0].length;dx++){
+   if(shape[dy][dx]){
+    if(y+dy>=size||x+dx>=size) return false;
+    if(g[y+dy][x+dx]) return false;
+   }
   }
+ }
+ return true;
+}
 
-  function randomBaseShape(){
-    return baseShapes[Math.floor(Math.random()*baseShapes.length)];
+function hasPlacement(piece,g){
+ for(let y=0;y<size;y++){
+  for(let x=0;x<size;x++){
+   if(canPlace(piece.shape,y,x,g)) return true;
   }
+ }
+ return false;
+}
 
-  function randomNon3x3Shape(){
-    const list = baseShapes.filter(s=>!shapesEqual(s,threeByThree));
-    return list[Math.floor(Math.random()*list.length)];
+function generateHand(){
+ pieces=[];
+ let safety=500;
+
+ while(pieces.length<3 && safety--){
+  const shape=baseShapes[Math.floor(Math.random()*baseShapes.length)];
+  const p={shape:shape,color:randColor()};
+  if(hasPlacement(p,board)){
+   pieces.push(p);
   }
+ }
 
-  // ====== ★改良 generateHand（AIそのまま） ======
-  function generateHand(){
-    pieces = [];
-    const occ = board.map(r=>r.map(v=>v?1:0));
-    let safety = 1000;
+ if(pieces.length<3){
+  alert("GAME OVER");
+  aiMode=false;
+ }
+}
 
-    while(pieces.length < 3 && safety > 0){
-      safety--;
+function simulate(g,piece,y,x){
+ let grid=deepCopy(g);
 
-      const count3 = pieces.filter(isThreeByThree).length;
-      let shape;
-
-      if(count3 === 0){
-        shape = Math.random()<0.12 ? threeByThree : randomBaseShape();
-      } else if(count3 === 1){
-        shape = Math.random()<0.5 ? threeByThree : randomNon3x3Shape();
-      } else {
-        shape = Math.random()<0.7 ? twoByThree : randomNon3x3Shape();
-      }
-
-      const candidate = { shape: shape, color: randColor() };
-
-      // ★必ず置けるものだけ採用
-      if(hasAnyPlacement(candidate, occ)){
-        pieces.push(candidate);
-      }
-    }
-
-    // 本当に盤面が詰んでいる場合のみゲーム終了
-    if(pieces.length < 3){
-      alert("GAME OVER");
-    }
+ for(let dy=0;dy<piece.shape.length;dy++){
+  for(let dx=0;dx<piece.shape[0].length;dx++){
+   if(piece.shape[dy][dx]){
+    grid[y+dy][x+dx]=1;
+   }
   }
+ }
 
-  // ====== 以下は元コードそのまま（AI含む） ======
+ let lines=0;
 
-  function canPlace(shape, y, x, grid){
-    for(let dy=0; dy<shape.length; dy++){
-      for(let dx=0; dx<shape[0].length; dx++){
-        if(shape[dy][dx]){
-          if(y+dy < 0 || x+dx < 0 || y+dy >= size || x+dx >= size) return false;
-          if(grid[y+dy][x+dx]) return false;
-        }
-      }
-    }
-    return true;
+ for(let r=0;r<size;r++){
+  if(grid[r].every(v=>v)){
+   grid[r].fill(0);
+   lines++;
   }
+ }
 
-  function simulatePlaceNoColor(grid, piece, y, x){
-    const g = deepCopyGrid(grid);
-    for(let dy=0; dy<piece.shape.length; dy++){
-      for(let dx=0; dx<piece.shape[0].length; dx++){
-        if(piece.shape[dy][dx]) g[y+dy][x+dx] = 1;
-      }
-    }
-    let lines = 0;
-    for(let r=0;r<size;r++){
-      if(g[r].every(v=>v)){ lines++; g[r].fill(0); }
-    }
-    for(let c=0;c<size;c++){
-      if(g.map(row=>row[c]).every(v=>v)){ lines++; for(let r=0;r<size;r++) g[r][c]=0; }
-    }
-    return { grid: g, lines };
+ for(let c=0;c<size;c++){
+  if(grid.map(row=>row[c]).every(v=>v)){
+   for(let r=0;r<size;r++) grid[r][c]=0;
+   lines++;
   }
+ }
 
-  function placeAndScoreAtomic(piece, y, x){
-    const occBefore = board.map(r=>r.map(v=>v?1:0));
-    const sim = simulatePlaceNoColor(occBefore, piece, y, x);
-    const lines = sim.lines;
+ return {grid,lines};
+}
 
-    let gained = countPieceCells(piece);
+function evaluate(grid,lines){
+ let blocks=0;
+ let holes=0;
 
-    if(lines>0){
-      gained += lines * LINE_POINT;
-      if(lines>=2) gained += (lines-1)*SIMULTANEOUS_BONUS_STEP;
-      comboCount++;
-      gained += COMBO_BASE + (comboCount-1)*10;
-    } else {
-      comboCount = 0;
+ for(let y=0;y<size;y++){
+  for(let x=0;x<size;x++){
+   if(grid[y][x]) blocks++;
+  }
+ }
+
+ for(let y=1;y<size-1;y++){
+  for(let x=1;x<size-1;x++){
+   if(!grid[y][x]){
+    if(grid[y-1][x]&&grid[y+1][x]&&grid[y][x-1]&&grid[y][x+1]){
+     holes++;
     }
+   }
+  }
+ }
 
-    for(let dy=0; dy<piece.shape.length; dy++){
-      for(let dx=0; dx<piece.shape[0].length; dx++){
-        if(piece.shape[dy][dx]) board[y+dy][x+dx] = piece.color;
-      }
+ return (-blocks*1000)+(lines*5000)-(holes*300);
+}
+
+function findBestMove(){
+ let best=-Infinity;
+ let bestMove=null;
+
+ const occ=board.map(r=>r.map(v=>v?1:0));
+
+ for(let i=0;i<pieces.length;i++){
+  const p=pieces[i];
+
+  for(let y=0;y<size;y++){
+   for(let x=0;x<size;x++){
+    if(!canPlace(p.shape,y,x,occ)) continue;
+
+    const sim=simulate(occ,p,y,x);
+    const val=evaluate(sim.grid,sim.lines);
+
+    if(val>best){
+     best=val;
+     bestMove={i,y,x};
     }
+   }
+  }
+ }
 
-    for(let r=0;r<size;r++) if(board[r].every(v=>v)) board[r].fill(0);
-    for(let c=0;c<size;c++) if(board.map(row=>row[c]).every(v=>v)) for(let r=0;r<size;r++) board[r][c]=0;
+ return bestMove;
+}
 
-    if(board.flat().filter(Boolean).length===0){
-      gained += ALLCLEAR_UI_BONUS;
-      allClearStreak++;
-    } else {
-      allClearStreak=0;
+function place(piece,y,x){
+ for(let dy=0;dy<piece.shape.length;dy++){
+  for(let dx=0;dx<piece.shape[0].length;dx++){
+   if(piece.shape[dy][dx]){
+    board[y+dy][x+dx]=piece.color;
+   }
+  }
+ }
+
+ let cleared=0;
+
+ for(let r=0;r<size;r++){
+  if(board[r].every(v=>v)){
+   board[r].fill(0);
+   cleared++;
+  }
+ }
+
+ for(let c=0;c<size;c++){
+  if(board.map(row=>row[c]).every(v=>v)){
+   for(let r=0;r<size;r++) board[r][c]=0;
+   cleared++;
+  }
+ }
+
+ score+=cleared*100;
+ combo=cleared>0?combo+1:0;
+
+ if(board.flat().every(v=>!v)){
+  score+=1000;
+ }
+
+ if(pieces.length===0) generateHand();
+}
+
+function draw(){
+ boardEl.innerHTML="";
+ for(let y=0;y<size;y++){
+  for(let x=0;x<size;x++){
+   const d=document.createElement("div");
+   d.className="cell";
+   if(board[y][x]){
+    d.style.background=board[y][x];
+   }
+   boardEl.appendChild(d);
+  }
+ }
+
+ piecesEl.innerHTML="";
+ pieces.forEach((p,i)=>{
+  const b=document.createElement("button");
+  b.textContent="P"+(i+1);
+  b.onclick=()=>{
+   for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+     if(canPlace(p.shape,y,x,board)){
+      place(p,y,x);
+      pieces.splice(i,1);
+      draw();
+      return;
+     }
     }
+   }
+  };
+  piecesEl.appendChild(b);
+ });
 
-    score += Math.floor(gained);
-  }
+ scoreEl.innerText="SCORE: "+score;
+ comboEl.innerText="Combo: "+combo;
+}
 
-  function drawBoard(){
-    boardEl.innerHTML='';
-    for(let y=0;y<size;y++){
-      for(let x=0;x<size;x++){
-        const c=document.createElement('div');
-        c.className='cell';
-        if(board[y][x]){
-          const b=document.createElement('div');
-          b.className='piece-block';
-          b.style.background=board[y][x];
-          c.appendChild(b);
-        }
-        boardEl.appendChild(c);
-      }
-    }
-  }
+function aiLoop(){
+ if(!aiMode) return;
 
-  function drawHand(){
-    piecesEl.innerHTML='';
-    pieces.forEach((p,i)=>{
-      const btn=document.createElement('button');
-      btn.textContent='P'+(i+1);
-      btn.onclick=()=>{
-        for(let y=0;y<size;y++){
-          for(let x=0;x<size;x++){
-            if(canPlace(p.shape,y,x,board)){
-              placeAndScoreAtomic(p,y,x);
-              pieces.splice(i,1);
-              if(pieces.length===0) generateHand();
-              drawAll();
-              return;
-            }
-          }
-        }
-      };
-      piecesEl.appendChild(btn);
-    });
-  }
+ const move=findBestMove();
+ if(move){
+  const p=pieces[move.i];
+  place(p,move.y,move.x);
+  pieces.splice(move.i,1);
+  draw();
+ }
 
-  function drawAll(){
-    drawBoard();
-    drawHand();
-    scoreEl.innerText='SCORE: '+score;
-    streakLabel.innerText='Combo: '+comboCount;
-  }
+ setTimeout(aiLoop,200);
+}
 
-  function init(){
-    board = Array(size).fill().map(()=>Array(size).fill(0));
-    score=0;
-    comboCount=0;
-    generateHand();
-    drawAll();
-  }
+function init(){
+ board=Array(size).fill().map(()=>Array(size).fill(0));
+ score=0;
+ combo=0;
+ generateHand();
+ draw();
+}
 
-  document.getElementById('startBtn').onclick=init;
-  document.getElementById('manualBtn').onclick=()=>mode='manual';
+document.getElementById("startBtn").onclick=init;
 
-  init();
+document.getElementById("aiBtn").onclick=()=>{
+ aiMode=!aiMode;
+ if(aiMode) aiLoop();
+};
+
+init();
 
 })();
 </script>
+
+</body>
+</html>
