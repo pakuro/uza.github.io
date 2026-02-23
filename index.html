@@ -104,8 +104,8 @@ const baseShapes=[
 [[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
 [[1],[1]],[[1],[1],[1]],
 [[1,1],[1,1]],[[1,0],[1,1]],[[1,1,1],[0,1,0]],
-[[1,1,1],[1,1,1],[1,1,1]],   // 3x3
-[[1,1,1],[1,1,1]]            // 2x3
+[[1,1,1],[1,1,1],[1,1,1]],
+[[1,1,1],[1,1,1]]
 ];
 
 function randColor(){return colors[Math.floor(Math.random()*colors.length)];}
@@ -172,21 +172,68 @@ return {grid,lines};
 
 function evaluate(g,lines){
 let filled=0;
-for(let y=0;y<size;y++)for(let x=0;x<size;x++)if(g[y][x])filled++;
-return -filled*1200 + lines*8000;
+let holes=0;
+
+for(let y=0;y<size;y++)
+for(let x=0;x<size;x++)
+if(g[y][x]) filled++;
+
+for(let y=0;y<size;y++)
+for(let x=0;x<size;x++)
+if(!g[y][x]){
+let blocked=0;
+if(y>0 && g[y-1][x]) blocked++;
+if(y<size-1 && g[y+1][x]) blocked++;
+if(x>0 && g[y][x-1]) blocked++;
+if(x<size-1 && g[y][x+1]) blocked++;
+if(blocked>=3) holes++;
+}
+
+let scoreEval=0;
+scoreEval -= filled * 1500;
+scoreEval -= holes * 3000;
+scoreEval += lines * 20000;
+
+if(filled===0) scoreEval += 200000;
+
+return scoreEval;
 }
 
 function findBestMove(){
-let best=-Infinity, bestMove=null;
-const occ=board.map(r=>r.map(v=>v?1:0));
+
+function search(g,depth){
+if(depth===0) return evaluate(g,0);
+let best=-Infinity;
+
 for(let i=0;i<pieces.length;i++){
 const p=pieces[i];
-for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-if(!canPlace(p.shape,y,x,occ))continue;
+for(let y=0;y<size;y++){
+for(let x=0;x<size;x++){
+if(!canPlace(p.shape,y,x,g)) continue;
+const sim=simulate(g,p,y,x);
+const val=evaluate(sim.grid,sim.lines)+search(sim.grid,depth-1)*0.7;
+if(val>best) best=val;
+}}}
+return best===-Infinity?evaluate(g,0):best;
+}
+
+let bestScore=-Infinity;
+let bestMove=null;
+const occ=board.map(r=>r.map(v=>v?1:0));
+
+for(let i=0;i<pieces.length;i++){
+const p=pieces[i];
+for(let y=0;y<size;y++){
+for(let x=0;x<size;x++){
+if(!canPlace(p.shape,y,x,occ)) continue;
 const sim=simulate(occ,p,y,x);
-const val=evaluate(sim.grid,sim.lines);
-if(val>best){best=val;bestMove={i,y,x};}
-}}
+const future=search(sim.grid,2);
+const total=evaluate(sim.grid,sim.lines)+future;
+if(total>bestScore){
+bestScore=total;
+bestMove={i,y,x};
+}
+}}}
 return bestMove;
 }
 
@@ -205,7 +252,8 @@ combo=cleared?combo+1:0;
 
 function draw(){
 boardEl.innerHTML="";
-for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+for(let y=0;y<size;y++)
+for(let x=0;x<size;x++){
 const c=document.createElement("div");c.className="cell";
 if(board[y][x]){
 const b=document.createElement("div");b.className="piece-block";
@@ -225,7 +273,7 @@ grid.style.display="grid";
 grid.style.gridTemplateColumns=`repeat(${p.shape[0].length},18px)`;
 grid.style.gap="3px";
 
-for(let y=0;y<p.shape.length;y++){
+for(let y=0;y<p.shape.length;y++)
 for(let x=0;x<p.shape[0].length;x++){
 const cell=document.createElement("div");
 cell.className="mini";
@@ -233,12 +281,12 @@ if(p.shape[y][x]) cell.style.background=p.color;
 else cell.style.opacity="0";
 grid.appendChild(cell);
 }
-}
 
 wrapper.appendChild(grid);
 
 wrapper.onclick=()=>{
-for(let y=0;y<size;y++)for(let x=0;x<size;x++)
+for(let y=0;y<size;y++)
+for(let x=0;x<size;x++)
 if(canPlace(p.shape,y,x,board)){
 place(p,y,x);
 pieces.splice(i,1);
