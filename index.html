@@ -1,339 +1,180 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<meta charset="utf-8" />
-<title>Block Blast — Custom (8x8, 3x3 rules)</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8">
+<title>にゃんこ大戦争 ゴキブリ版</title>
 <style>
-:root{ --cell:52px; --gap:6px; }
 body{
-  margin:0; background:#eef6ff; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "メイリオ", sans-serif;
-  display:flex; justify-content:center; align-items:flex-start; padding:28px;
+  margin:0;
+  background:#f4f4f4;
+  font-family:sans-serif;
+  text-align:center;
 }
-#wrap{
-  width:860px; background:white; border-radius:14px; box-shadow:0 12px 40px rgba(10,20,60,0.12); padding:18px;
+
+#topbar{
+  background:#222;
+  color:white;
+  padding:10px;
+  font-size:20px;
 }
-.header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
-.header-left{ display:flex; gap:10px; align-items:center; }
-#score{ font-weight:800; font-size:22px; color:#0f172a; }
-.controls button{
-  background:#2b8af6; color:white; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700;
+
+#field{
+  position:relative;
+  width:100%;
+  height:400px;
+  background:linear-gradient(#ddd,#bbb);
+  overflow:hidden;
+  border-top:3px solid black;
+  border-bottom:3px solid black;
 }
-.controls button.secondary{ background:#94a3b8; }
-.board-wrap{ display:flex; gap:18px; align-items:flex-start; }
-#board{
-  width: calc(var(--cell)*8 + var(--gap)*7 + 24px);
-  display:grid;
-  grid-template-columns:repeat(8,var(--cell));
-  gap:var(--gap);
-  background:#e8f1ff; padding:12px; border-radius:12px;
+
+.goki{
+  position:absolute;
+  width:60px;
+  height:100px;
+  background-image:url('IMG_5172.png'); /* ← 同じフォルダに画像置いてね */
+  background-size:contain;
+  background-repeat:no-repeat;
 }
-.cell{
-  width:var(--cell); height:var(--cell); background:#fbfdff; border-radius:12px;
-  display:flex; justify-content:center; align-items:center;
+
+.trap{
+  position:absolute;
+  width:80px;
+  height:40px;
+  background:brown;
+  border:3px solid black;
 }
-.piece-block{
-  width:calc(100% - 8px); height:calc(100% - 8px); border-radius:10px;
-  box-shadow:
-    inset 0 -6px 10px rgba(0,0,0,0.18),
-    inset 0 6px 8px rgba(255,255,255,0.35),
-    0 6px 18px rgba(12,24,60,0.08);
+
+button{
+  margin:5px;
+  padding:10px 20px;
+  font-size:16px;
+  cursor:pointer;
 }
-.hud{ width:300px; display:flex; flex-direction:column; gap:12px; }
-.pieces-list{ display:flex; gap:10px; align-items:center; justify-content:center; }
-.piecePreview{
-  display:inline-grid; gap:4px; padding:8px; border-radius:10px; cursor:pointer; background:#f8fbff; min-width:82px;
-}
-.mini{ width:18px; height:18px; border-radius:4px; box-shadow: inset 0 2px 0 rgba(255,255,255,0.6); }
-.info{ font-size:13px; color:#475569; }
-.bigNote{ font-weight:800; color:#0f172a; font-size:16px; }
-.streak{ font-weight:800; color:#b45309; font-size:14px; }
-.footer{ margin-top:12px; display:flex; justify-content:space-between; color:#64748b; font-size:13px; }
 </style>
 </head>
 <body>
-<div id="wrap">
-<div class="header">
-<div class="header-left">
-<div id="score">SCORE: 0</div>
-<div class="bigNote" id="aiLabel">AI: READY</div>
-<div class="streak" id="streakLabel">Combo: 0</div>
-</div>
-<div class="controls">
-<button id="startBtn">START GAME</button>
-<button id="aiBtn">AI</button>
-<button id="manualBtn" class="secondary">MANUAL</button>
-</div>
+
+<div id="topbar">
+  💰お金: <span id="money">100</span>
 </div>
 
-<div class="board-wrap">
-<div id="board"></div>
-<div class="hud">
-<div class="info">Hand pieces</div>
-<div id="pieces" class="pieces-list"></div>
-<div class="info">AI prediction: —</div>
-</div>
-</div>
+<div id="field"></div>
 
-<div class="footer">
-<div>Block Blast — Custom</div>
-<div>Made for you ✨</div>
-</div>
+<div>
+  <button onclick="spray()">ゴキブリスプレー (50)</button>
+  <button onclick="slipper()">スリッパ母 (300)</button>
+  <button onclick="placeTrap()">ゴキブリホイホイ (100)</button>
+  <button onclick="clean()">clean (150)</button>
 </div>
 
 <script>
-(() => {
+let money = 100;
+let field = document.getElementById("field");
+let moneyText = document.getElementById("money");
+let traps = [];
+let spawnRate = 2000;
 
-const size=8;
-const colors=["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
+// 毎秒お金
+setInterval(()=>{
+  money += 5;
+  updateMoney();
+},1000);
 
-let board=[];
-let pieces=[];
-let score=0;
-let combo=0;
-let mode="manual";
-let aiBusy=false;
+// ゴキ出現
+setInterval(()=>{
+  spawnGoki();
+},spawnRate);
 
-const boardEl=document.getElementById("board");
-const piecesEl=document.getElementById("pieces");
-const scoreEl=document.getElementById("score");
-const streakLabel=document.getElementById("streakLabel");
-const aiLabel=document.getElementById("aiLabel");
-
-const baseShapes=[
-[[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
-[[1],[1]],[[1],[1],[1]],
-[[1,1],[1,1]],[[1,0],[1,1]],[[1,1,1],[0,1,0]],
-[[1,1,1],[1,1,1],[1,1,1]],
-[[1,1,1],[1,1,1]]
-];
-
-function randColor(){return colors[Math.floor(Math.random()*colors.length)];}
-function deep(g){return g.map(r=>r.slice());}
-
-function canPlace(shape,y,x,g){
-for(let dy=0;dy<shape.length;dy++)
-for(let dx=0;dx<shape[0].length;dx++)
-if(shape[dy][dx]){
-if(y+dy>=size||x+dx>=size) return false;
-if(g[y+dy][x+dx]) return false;
-}
-return true;
+function updateMoney(){
+  moneyText.textContent = money;
 }
 
-function hasPlacement(p,g){
-for(let y=0;y<size;y++)
-for(let x=0;x<size;x++)
-if(canPlace(p.shape,y,x,g))return true;
-return false;
+function spawnGoki(){
+  let goki = document.createElement("div");
+  goki.className = "goki";
+  goki.style.left = "0px";
+  goki.style.top = Math.random()*300 + "px";
+  field.appendChild(goki);
+
+  let hp = 3;
+  let x = 0;
+
+  let move = setInterval(()=>{
+    x += 2;
+    goki.style.left = x + "px";
+
+    // トラップ判定
+    traps.forEach(trap=>{
+      let tx = parseInt(trap.style.left);
+      if(x > tx-30 && x < tx+50){
+        hp--;
+        if(hp<=0){
+          clearInterval(move);
+          field.removeChild(goki);
+          money += 20;
+          updateMoney();
+        }
+      }
+    });
+
+    if(x>window.innerWidth){
+      clearInterval(move);
+      field.removeChild(goki);
+    }
+  },30);
 }
 
-function generateHand(){
-pieces=[];
-let tries=300;
+function spray(){
+  if(money<50) return;
+  money-=50;
+  updateMoney();
 
-function count3x3(){
-return pieces.filter(p=>p.shape.length===3 && p.shape[0].length===3).length;
+  let gokis = document.querySelectorAll(".goki");
+  gokis.forEach(g=>{
+    field.removeChild(g);
+    money+=20;
+  });
+  updateMoney();
 }
 
-while(pieces.length<3 && tries--){
-let shape;
-const threeCount=count3x3();
+function slipper(){
+  if(money<300) return;
+  money-=300;
+  updateMoney();
 
-if(threeCount===1 && Math.random()<0.5){
-shape=[[1,1,1],[1,1,1],[1,1,1]];
-}
-else if(threeCount===2 && Math.random()<0.7){
-shape=[[1,1,1],[1,1,1]];
-}
-else{
-shape=baseShapes[Math.floor(Math.random()*baseShapes.length)];
-}
-
-const p={shape,color:randColor()};
-if(hasPlacement(p,board)) pieces.push(p);
+  let gokis = document.querySelectorAll(".goki");
+  gokis.forEach(g=>{
+    let chance = Math.random();
+    if(chance>0.3){ // 強い
+      field.removeChild(g);
+      money+=20;
+    }
+  });
+  updateMoney();
 }
 
-if(pieces.length<3) alert("GAME OVER");
+function placeTrap(){
+  if(money<100) return;
+  money-=100;
+  updateMoney();
+
+  let trap = document.createElement("div");
+  trap.className="trap";
+  trap.style.left = (Math.random()*window.innerWidth)+"px";
+  trap.style.top = "330px";
+  field.appendChild(trap);
+  traps.push(trap);
 }
 
-function simulate(g,p,y,x){
-let grid=deep(g);
-for(let dy=0;dy<p.shape.length;dy++)
-for(let dx=0;dx<p.shape[0].length;dx++)
-if(p.shape[dy][dx]) grid[y+dy][x+dx]=1;
-
-let lines=0;
-for(let r=0;r<size;r++) if(grid[r].every(v=>v)){grid[r].fill(0);lines++;}
-for(let c=0;c<size;c++) if(grid.map(r=>r[c]).every(v=>v)){for(let r=0;r<size;r++)grid[r][c]=0;lines++;}
-
-return {grid,lines};
+function clean(){
+  if(money<150) return;
+  money-=150;
+  updateMoney();
+  traps=[];
+  document.querySelectorAll(".trap").forEach(t=>field.removeChild(t));
 }
-
-function evaluate(g,lines){
-let filled=0;
-let holes=0;
-
-for(let y=0;y<size;y++)
-for(let x=0;x<size;x++)
-if(g[y][x]) filled++;
-
-for(let y=0;y<size;y++)
-for(let x=0;x<size;x++)
-if(!g[y][x]){
-let blocked=0;
-if(y>0 && g[y-1][x]) blocked++;
-if(y<size-1 && g[y+1][x]) blocked++;
-if(x>0 && g[y][x-1]) blocked++;
-if(x<size-1 && g[y][x+1]) blocked++;
-if(blocked>=3) holes++;
-}
-
-let scoreEval=0;
-scoreEval -= filled * 1500;
-scoreEval -= holes * 3000;
-scoreEval += lines * 20000;
-
-if(filled===0) scoreEval += 200000;
-
-return scoreEval;
-}
-
-function findBestMove(){
-
-function search(g,depth){
-if(depth===0) return evaluate(g,0);
-let best=-Infinity;
-
-for(let i=0;i<pieces.length;i++){
-const p=pieces[i];
-for(let y=0;y<size;y++){
-for(let x=0;x<size;x++){
-if(!canPlace(p.shape,y,x,g)) continue;
-const sim=simulate(g,p,y,x);
-const val=evaluate(sim.grid,sim.lines)+search(sim.grid,depth-1)*0.7;
-if(val>best) best=val;
-}}}
-return best===-Infinity?evaluate(g,0):best;
-}
-
-let bestScore=-Infinity;
-let bestMove=null;
-const occ=board.map(r=>r.map(v=>v?1:0));
-
-for(let i=0;i<pieces.length;i++){
-const p=pieces[i];
-for(let y=0;y<size;y++){
-for(let x=0;x<size;x++){
-if(!canPlace(p.shape,y,x,occ)) continue;
-const sim=simulate(occ,p,y,x);
-const future=search(sim.grid,2);
-const total=evaluate(sim.grid,sim.lines)+future;
-if(total>bestScore){
-bestScore=total;
-bestMove={i,y,x};
-}
-}}}
-return bestMove;
-}
-
-function place(p,y,x){
-for(let dy=0;dy<p.shape.length;dy++)
-for(let dx=0;dx<p.shape[0].length;dx++)
-if(p.shape[dy][dx]) board[y+dy][x+dx]=p.color;
-
-let cleared=0;
-for(let r=0;r<size;r++) if(board[r].every(v=>v)){board[r].fill(0);cleared++;}
-for(let c=0;c<size;c++) if(board.map(r=>r[c]).every(v=>v)){for(let r=0;r<size;r++)board[r][c]=0;cleared++;}
-
-score+=cleared*100;
-combo=cleared?combo+1:0;
-}
-
-function draw(){
-boardEl.innerHTML="";
-for(let y=0;y<size;y++)
-for(let x=0;x<size;x++){
-const c=document.createElement("div");c.className="cell";
-if(board[y][x]){
-const b=document.createElement("div");b.className="piece-block";
-b.style.background=board[y][x];
-c.appendChild(b);
-}
-boardEl.appendChild(c);
-}
-
-piecesEl.innerHTML="";
-pieces.forEach((p,i)=>{
-const wrapper=document.createElement("div");
-wrapper.className="piecePreview";
-
-const grid=document.createElement("div");
-grid.style.display="grid";
-grid.style.gridTemplateColumns=`repeat(${p.shape[0].length},18px)`;
-grid.style.gap="3px";
-
-for(let y=0;y<p.shape.length;y++)
-for(let x=0;x<p.shape[0].length;x++){
-const cell=document.createElement("div");
-cell.className="mini";
-if(p.shape[y][x]) cell.style.background=p.color;
-else cell.style.opacity="0";
-grid.appendChild(cell);
-}
-
-wrapper.appendChild(grid);
-
-wrapper.onclick=()=>{
-for(let y=0;y<size;y++)
-for(let x=0;x<size;x++)
-if(canPlace(p.shape,y,x,board)){
-place(p,y,x);
-pieces.splice(i,1);
-if(!pieces.length)generateHand();
-draw();
-return;
-}
-};
-
-piecesEl.appendChild(wrapper);
-});
-
-scoreEl.innerText="SCORE: "+score;
-streakLabel.innerText="Combo: "+combo;
-}
-
-function aiLoop(){
-if(mode!=="ai"||aiBusy)return;
-aiBusy=true;
-aiLabel.innerText="AI: THINKING";
-setTimeout(()=>{
-const move=findBestMove();
-if(!move){aiLabel.innerText="AI: GAME OVER";return;}
-place(pieces[move.i],move.y,move.x);
-pieces.splice(move.i,1);
-if(!pieces.length)generateHand();
-draw();
-aiBusy=false;
-setTimeout(aiLoop,200);
-},100);
-}
-
-document.getElementById("startBtn").onclick=()=>{
-board=Array(size).fill().map(()=>Array(size).fill(0));
-score=0;combo=0;
-generateHand();
-draw();
-};
-
-document.getElementById("aiBtn").onclick=()=>{mode="ai";aiLoop();};
-document.getElementById("manualBtn").onclick=()=>{mode="manual";aiLabel.innerText="AI: PAUSED";};
-
-board=Array(size).fill().map(()=>Array(size).fill(0));
-generateHand();
-draw();
-
-})();
 </script>
+
 </body>
 </html>
