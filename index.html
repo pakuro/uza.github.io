@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>因数分解トライアル</title>
+    <title>因数分解トライアル - EXTREME</title>
     <style>
         /* CSS: 全体のデザイン */
         body {
@@ -20,8 +20,8 @@
 
         #game-container {
             width: 95%;
-            max-width: 800px;
-            height: 600px;
+            max-width: 850px;
+            height: 650px;
             background: white;
             border-radius: 20px;
             box-shadow: 0 15px 35px rgba(0,0,0,0.1);
@@ -44,6 +44,7 @@
             font-weight: bold;
             z-index: 100;
         }
+        #home-btn:hover { background: #f8f8f8; }
 
         /* ヘッダー統計 */
         header {
@@ -59,10 +60,14 @@
 
         /* 問題エリア */
         .math-expr {
-            font-size: 3rem;
+            font-size: 2.8rem;
             text-align: center;
             margin: 60px 0;
             font-weight: bold;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         /* フィードバック表示 (clear! / mis!) */
@@ -71,7 +76,7 @@
             top: 45%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 5rem;
+            font-size: 6rem;
             font-weight: bold;
             opacity: 0;
             pointer-events: none;
@@ -90,23 +95,25 @@
         .options-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 15px;
             margin-top: auto;
         }
         .option {
-            padding: 20px;
-            font-size: 1.3rem;
+            padding: 18px;
+            font-size: 1.2rem;
             border: 2px solid #eee;
-            border-radius: 15px;
+            border-radius: 12px;
             background: white;
             cursor: pointer;
             transition: all 0.2s;
+            line-height: 1.4;
         }
         .option:hover { border-color: #333; background-color: #fdfdfd; }
 
         /* 特殊効果 */
-        .time-plus { color: #28a745; transform: scale(1.3); transition: 0.2s; }
-        .time-minus { color: #dc3545; transform: scale(1.3); transition: 0.2s; }
+        #timer.time-plus { color: #28a745; transform: scale(1.3); }
+        #timer.time-minus { color: #dc3545; transform: scale(1.3); }
+        #timer { transition: 0.2s; }
         .hidden { display: none !important; }
 
         /* オーバーレイ */
@@ -150,21 +157,32 @@
         <div id="overlay" class="overlay">
             <div class="content">
                 <h1 id="overlay-title">因数分解トライアル</h1>
-                <p id="result-text">間違えると-2秒、正解で+2秒！</p>
+                <p id="result-text">【難易度UP】複雑な問題も登場！<br>正解:+2秒 / ミス:-2秒</p>
                 <button id="start-btn">スタート</button>
             </div>
         </div>
     </div>
 
     <script>
+        // 問題リスト：基本から難問（たすき掛け、複数段階）まで
         const questions = [
-            { q: "x² + 20x + 100", a: "(x + 10)²", options: ["(x + 10)²", "(x + 2)(x - 1)", "(x + 6)(x - 9)", "(x - 10)²"] },
-            { q: "x² - 20x + 100", a: "(x - 10)²", options: ["(x + 10)²", "(x - 10)²", "(x + 10)(x - 3)", "(x - 1)(x - 5)"] },
-            { q: "x² - 8x + 16", a: "(x - 4)²", options: ["(x + 4)²", "(x - 4)²", "(x + 2)(x + 8)", "(x - 2)(x - 8)"] },
-            { q: "x² + 17x + 70", a: "(x + 10)(x + 7)", options: ["(x + 10)(x + 7)", "(x + 10)(x - 7)", "(x + 7)(x - 10)", "(x - 10)(x - 7)"] },
-            { q: "x² - 12x + 36", a: "(x - 6)²", options: ["(x - 6)²", "(x + 6)²", "(x - 4)(x - 9)", "(x + 4)(x + 9)"] },
+            // 標準
+            { q: "x² - 8x + 16", a: "(x - 4)²", options: ["(x - 4)²", "(x + 4)²", "(x - 8)(x + 2)", "(x - 2)(x - 8)"] },
             { q: "x² + 3x - 18", a: "(x + 6)(x - 3)", options: ["(x + 6)(x - 3)", "(x - 6)(x + 3)", "(x + 9)(x - 2)", "(x + 2)(x - 9)"] },
-            { q: "3x² + 24x - 27", a: "3(x + 9)(x - 1)", options: ["3(x + 9)(x - 1)", "3(x + 1)(x + 9)", "3(x - 1)(x - 9)", "3(x + 1)(x - 9)"] }
+            
+            // 係数あり・複雑
+            { q: "4x² + 16x + 4", a: "4(x² + 4x + 1)", options: ["4(x² + 4x + 1)", "4(x + 2)²", "(2x + 2)²", "4(x + 1)²"] },
+            { q: "16x² + 16x + 4", a: "4(2x + 1)²", options: ["4(2x + 1)²", "4(4x + 1)²", "(4x + 2)²", "4(2x + 2)²"] },
+            { q: "3x² - 12", a: "3(x + 2)(x - 2)", options: ["3(x + 2)(x - 2)", "3(x - 2)²", "3(x + 4)(x - 4)", "(3x + 6)(x - 2)"] },
+            
+            // たすき掛け・応用
+            { q: "2x² + 5x + 3", a: "(2x + 3)(x + 1)", options: ["(2x + 3)(x + 1)", "(2x + 1)(x + 3)", "(x + 2)(2x + 1.5)", "(2x - 3)(x - 1)"] },
+            { q: "3x² + 10x + 3", a: "(3x + 1)(x + 3)", options: ["(3x + 1)(x + 3)", "(3x + 3)(x + 1)", "(x + 3)²", "(3x - 1)(x - 3)"] },
+            { q: "6x² - 7x + 2", a: "(2x - 1)(3x - 2)", options: ["(2x - 1)(3x - 2)", "(3x - 1)(2x - 2)", "(6x - 1)(x - 2)", "(2x + 1)(3x + 2)"] },
+            
+            // 共通因数でくくる + 因数分解
+            { q: "2x² - 20x + 50", a: "2(x - 5)²", options: ["2(x - 5)²", "2(x + 5)²", "(2x - 10)(x - 5)", "2(x - 10)(x - 5)"] },
+            { q: "ax² - ay²", a: "a(x + y)(x - y)", options: ["a(x + y)(x - y)", "a(x - y)²", "(ax + ay)(x - y)", "a(x² - y²)"] }
         ];
 
         let score = 0, mistakes = 0, combo = 0, timeLeft = 30, timerInterval;
@@ -199,8 +217,12 @@
         }
 
         function nextQuestion() {
+            // ランダムに問題を選択
             const qData = questions[Math.floor(Math.random() * questions.length)];
+            
+            // 指数表示を綺麗にするため、²をそのまま使用（またはHTMLタグ化可能）
             questionEl.innerText = qData.q;
+            
             optionsEl.innerHTML = '';
             [...qData.options].sort(() => Math.random() - 0.5).forEach(opt => {
                 const btn = document.createElement('button');
@@ -212,8 +234,8 @@
         }
 
         function checkAnswer(selected, correct) {
-            feedbackEl.className = ''; // リセット
-            void feedbackEl.offsetWidth; // アニメーション再トリガー用
+            feedbackEl.className = ''; 
+            void feedbackEl.offsetWidth; // リフロー強制でアニメ再始動
 
             if (selected === correct) {
                 score++; combo++; timeLeft += 2;
@@ -247,8 +269,8 @@
             overlay.classList.remove('hidden');
             homeBtn.classList.add('hidden');
             document.getElementById('overlay-title').innerText = title;
-            document.getElementById('result-text').innerText = `正解数: ${score}問\nお疲れ様でした！`;
-            startBtn.innerText = "もう一度プレイ";
+            document.getElementById('result-text').innerText = `最終正解数: ${score}問\nコンボ最大: ${combo}`;
+            startBtn.innerText = "再挑戦する";
         }
 
         startBtn.addEventListener('click', startGame);
