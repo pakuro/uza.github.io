@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>因数分解トライアル</title>
     <style>
-        /* CSS: デザイン設定 */
+        /* CSS: 全体のデザイン */
         body {
             font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
             background-color: #f0f2f5;
@@ -15,6 +15,7 @@
             height: 100vh;
             margin: 0;
             color: #333;
+            overflow: hidden;
         }
 
         #game-container {
@@ -28,10 +29,9 @@
             position: relative;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
         }
 
-        /* ホームボタン */
+        /* 終了ボタン */
         #home-btn {
             position: absolute;
             top: 20px;
@@ -42,12 +42,10 @@
             border-radius: 30px;
             cursor: pointer;
             font-weight: bold;
-            transition: all 0.2s;
             z-index: 100;
         }
-        #home-btn:hover { background: #f8f8f8; border-color: #bbb; }
 
-        /* ヘッダー統計情報 */
+        /* ヘッダー統計 */
         header {
             display: flex;
             justify-content: space-around;
@@ -56,20 +54,39 @@
             margin-bottom: 20px;
         }
         .stat { text-align: center; min-width: 80px; }
-        .stat span { font-size: 0.75rem; color: #888; font-weight: bold; display: block; margin-bottom: 5px; }
-        .stat div { font-size: 1.8rem; font-weight: bold; font-family: 'Courier New', Courier, monospace; }
+        .stat span { font-size: 0.75rem; color: #888; font-weight: bold; display: block; }
+        .stat div { font-size: 1.8rem; font-weight: bold; }
 
-        /* 問題表示エリア */
-        .instruction { text-align: center; color: #666; margin-bottom: 10px; }
+        /* 問題エリア */
         .math-expr {
             font-size: 3rem;
             text-align: center;
             margin: 60px 0;
             font-weight: bold;
-            letter-spacing: 1px;
         }
 
-        /* 選択肢ボタン */
+        /* フィードバック表示 (clear! / mis!) */
+        #feedback {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            font-weight: bold;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+        }
+        .show-clear { color: #28a745; animation: feedback-anim 0.6s ease-out; }
+        .show-mis { color: #dc3545; animation: feedback-anim 0.6s ease-out; }
+
+        @keyframes feedback-anim {
+            0% { opacity: 0; transform: translate(-50%, -40%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -60%) scale(1); }
+        }
+
+        /* 選択肢 */
         .options-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -84,17 +101,15 @@
             background: white;
             cursor: pointer;
             transition: all 0.2s;
-            text-align: center;
         }
-        .option:hover { border-color: #333; background-color: #fdfdfd; transform: translateY(-2px); }
-        .option:active { transform: translateY(0); }
+        .option:hover { border-color: #333; background-color: #fdfdfd; }
 
-        /* 演出用クラス */
-        .time-plus { color: #28a745; transform: scale(1.2); transition: 0.2s; }
-        .time-minus { color: #dc3545; transform: scale(1.2); transition: 0.2s; }
+        /* 特殊効果 */
+        .time-plus { color: #28a745; transform: scale(1.3); transition: 0.2s; }
+        .time-minus { color: #dc3545; transform: scale(1.3); transition: 0.2s; }
         .hidden { display: none !important; }
 
-        /* オーバーレイ（開始・終了画面） */
+        /* オーバーレイ */
         .overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -105,19 +120,12 @@
             z-index: 200;
             text-align: center;
         }
-        .overlay h1 { font-size: 2.5rem; margin-bottom: 10px; }
-        .overlay p { font-size: 1.2rem; color: #666; margin-bottom: 30px; }
         #start-btn {
             padding: 18px 60px;
             font-size: 1.4rem;
-            background: #333;
-            color: white;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            transition: opacity 0.2s;
+            background: #333; color: white;
+            border: none; border-radius: 50px; cursor: pointer;
         }
-        #start-btn:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -132,8 +140,9 @@
             <div class="stat"><span>COMBO</span><div id="combo">0</div></div>
         </header>
 
+        <div id="feedback"></div>
+
         <main id="game-screen">
-            <p class="instruction">因数分解せよ</p>
             <div id="question" class="math-expr">---</div>
             <div id="options" class="options-grid"></div>
         </main>
@@ -141,14 +150,13 @@
         <div id="overlay" class="overlay">
             <div class="content">
                 <h1 id="overlay-title">因数分解トライアル</h1>
-                <p id="result-text">準備はいいですか？</p>
+                <p id="result-text">間違えると-2秒、正解で+2秒！</p>
                 <button id="start-btn">スタート</button>
             </div>
         </div>
     </div>
 
     <script>
-        // JavaScript: ロジック設定
         const questions = [
             { q: "x² + 20x + 100", a: "(x + 10)²", options: ["(x + 10)²", "(x + 2)(x - 1)", "(x + 6)(x - 9)", "(x - 10)²"] },
             { q: "x² - 20x + 100", a: "(x - 10)²", options: ["(x + 10)²", "(x - 10)²", "(x + 10)(x - 3)", "(x - 1)(x - 5)"] },
@@ -159,32 +167,24 @@
             { q: "3x² + 24x - 27", a: "3(x + 9)(x - 1)", options: ["3(x + 9)(x - 1)", "3(x + 1)(x + 9)", "3(x - 1)(x - 9)", "3(x + 1)(x - 9)"] }
         ];
 
-        let score = 0;
-        let mistakes = 0;
-        let combo = 0;
-        let timeLeft = 30;
-        let timerInterval;
+        let score = 0, mistakes = 0, combo = 0, timeLeft = 30, timerInterval;
 
-        const timerEl = document.getElementById('timer');
-        const scoreEl = document.getElementById('score');
-        const mistakesEl = document.getElementById('mistakes');
-        const comboEl = document.getElementById('combo');
-        const homeBtn = document.getElementById('home-btn');
-        const startBtn = document.getElementById('start-btn');
-        const overlay = document.getElementById('overlay');
-        const questionEl = document.getElementById('question');
-        const optionsEl = document.getElementById('options');
+        const timerEl = document.getElementById('timer'),
+              scoreEl = document.getElementById('score'),
+              mistakesEl = document.getElementById('mistakes'),
+              comboEl = document.getElementById('combo'),
+              homeBtn = document.getElementById('home-btn'),
+              startBtn = document.getElementById('start-btn'),
+              overlay = document.getElementById('overlay'),
+              questionEl = document.getElementById('question'),
+              optionsEl = document.getElementById('options'),
+              feedbackEl = document.getElementById('feedback');
 
         function startGame() {
-            score = 0;
-            mistakes = 0;
-            combo = 0;
-            timeLeft = 30;
+            score = 0; mistakes = 0; combo = 0; timeLeft = 30;
             updateStats();
-            
             overlay.classList.add('hidden');
             homeBtn.classList.remove('hidden');
-            
             nextQuestion();
             startTimer();
         }
@@ -193,10 +193,7 @@
             clearInterval(timerInterval);
             timerInterval = setInterval(() => {
                 timeLeft--;
-                if (timeLeft <= 0) {
-                    timeLeft = 0;
-                    endGame("タイムアップ！");
-                }
+                if (timeLeft <= 0) { timeLeft = 0; endGame("タイムアップ！"); }
                 timerEl.innerText = timeLeft;
             }, 1000);
         }
@@ -205,8 +202,6 @@
             const qData = questions[Math.floor(Math.random() * questions.length)];
             questionEl.innerText = qData.q;
             optionsEl.innerHTML = '';
-            
-            // 選択肢をシャッフル
             [...qData.options].sort(() => Math.random() - 0.5).forEach(opt => {
                 const btn = document.createElement('button');
                 btn.className = 'option';
@@ -217,24 +212,27 @@
         }
 
         function checkAnswer(selected, correct) {
+            feedbackEl.className = ''; // リセット
+            void feedbackEl.offsetWidth; // アニメーション再トリガー用
+
             if (selected === correct) {
-                score++;
-                combo++;
-                timeLeft += 2; // 正解：+2秒
-                flashEffect('time-plus');
+                score++; combo++; timeLeft += 2;
+                feedbackEl.innerText = "clear!";
+                feedbackEl.classList.add('show-clear');
+                timerEl.classList.add('time-plus');
             } else {
-                mistakes++;
-                combo = 0;
-                timeLeft = Math.max(0, timeLeft - 2); // 不正解：-2秒
-                flashEffect('time-minus');
+                mistakes++; combo = 0; timeLeft = Math.max(0, timeLeft - 2);
+                feedbackEl.innerText = "mis!";
+                feedbackEl.classList.add('show-mis');
+                timerEl.classList.add('time-minus');
             }
+            
+            setTimeout(() => {
+                timerEl.classList.remove('time-plus', 'time-minus');
+            }, 300);
+
             updateStats();
             nextQuestion();
-        }
-
-        function flashEffect(className) {
-            timerEl.classList.add(className);
-            setTimeout(() => timerEl.classList.remove(className), 300);
         }
 
         function updateStats() {
@@ -248,9 +246,8 @@
             clearInterval(timerInterval);
             overlay.classList.remove('hidden');
             homeBtn.classList.add('hidden');
-            
             document.getElementById('overlay-title').innerText = title;
-            document.getElementById('result-text').innerText = `正解: ${score} | 不正解: ${mistakes}\nお疲れ様でした！`;
+            document.getElementById('result-text').innerText = `正解数: ${score}問\nお疲れ様でした！`;
             startBtn.innerText = "もう一度プレイ";
         }
 
