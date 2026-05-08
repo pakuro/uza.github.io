@@ -1,367 +1,261 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-<meta charset="utf-8" />
-<title>Block Blast — Custom (8x8, 3x3 rules)</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<style>
-:root{ --cell:52px; --gap:6px; }
-body{
-  margin:0; background:#eef6ff; font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "メイリオ", sans-serif;
-  display:flex; justify-content:center; align-items:flex-start; padding:28px;
-}
-#wrap{
-  width:860px; background:white; border-radius:14px; box-shadow:0 12px 40px rgba(10,20,60,0.12); padding:18px;
-}
-.header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
-.header-left{ display:flex; gap:10px; align-items:center; }
-#score{ font-weight:800; font-size:22px; color:#0f172a; }
-.controls button{
-  background:#2b8af6; color:white; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700;
-}
-.controls button.secondary{ background:#94a3b8; }
-.board-wrap{ display:flex; gap:18px; align-items:flex-start; }
-#board{
-  width: calc(var(--cell)*8 + var(--gap)*7 + 24px);
-  display:grid;
-  grid-template-columns:repeat(8,var(--cell));
-  gap:var(--gap);
-  background:#e8f1ff; padding:12px; border-radius:12px;
-}
-.cell{
-  width:var(--cell); height:var(--cell); background:#fbfdff; border-radius:12px;
-  display:flex; justify-content:center; align-items:center;
-}
-.piece-block{
-  width:calc(100% - 8px); height:calc(100% - 8px); border-radius:10px;
-  box-shadow:
-    inset 0 -6px 10px rgba(0,0,0,0.18),
-    inset 0 6px 8px rgba(255,255,255,0.35),
-    0 6px 18px rgba(12,24,60,0.08);
-}
-.hud{ width:300px; display:flex; flex-direction:column; gap:12px; }
-.pieces-list{ display:flex; gap:10px; align-items:center; justify-content:center; }
-.piecePreview{
-  display:inline-grid; gap:4px; padding:8px; border-radius:10px; cursor:pointer; background:#f8fbff; min-width:82px;
-}
-.mini{ width:18px; height:18px; border-radius:4px; box-shadow: inset 0 2px 0 rgba(255,255,255,0.6); }
-.info{ font-size:13px; color:#475569; }
-.bigNote{ font-weight:800; color:#0f172a; font-size:16px; }
-.streak{ font-weight:800; color:#b45309; font-size:14px; }
-.footer{ margin-top:12px; display:flex; justify-content:space-between; color:#64748b; font-size:13px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>因数分解トライアル</title>
+    <style>
+        /* CSS: デザイン設定 */
+        body {
+            font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        #game-container {
+            width: 95%;
+            max-width: 800px;
+            height: 600px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            padding: 30px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ホームボタン */
+        #home-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #fff;
+            border: 2px solid #ddd;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        #home-btn:hover { background: #f8f8f8; border-color: #bbb; }
+
+        /* ヘッダー統計情報 */
+        header {
+            display: flex;
+            justify-content: space-around;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+        .stat { text-align: center; min-width: 80px; }
+        .stat span { font-size: 0.75rem; color: #888; font-weight: bold; display: block; margin-bottom: 5px; }
+        .stat div { font-size: 1.8rem; font-weight: bold; font-family: 'Courier New', Courier, monospace; }
+
+        /* 問題表示エリア */
+        .instruction { text-align: center; color: #666; margin-bottom: 10px; }
+        .math-expr {
+            font-size: 3rem;
+            text-align: center;
+            margin: 60px 0;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        /* 選択肢ボタン */
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: auto;
+        }
+        .option {
+            padding: 20px;
+            font-size: 1.3rem;
+            border: 2px solid #eee;
+            border-radius: 15px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .option:hover { border-color: #333; background-color: #fdfdfd; transform: translateY(-2px); }
+        .option:active { transform: translateY(0); }
+
+        /* 演出用クラス */
+        .time-plus { color: #28a745; transform: scale(1.2); transition: 0.2s; }
+        .time-minus { color: #dc3545; transform: scale(1.2); transition: 0.2s; }
+        .hidden { display: none !important; }
+
+        /* オーバーレイ（開始・終了画面） */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.98);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            text-align: center;
+        }
+        .overlay h1 { font-size: 2.5rem; margin-bottom: 10px; }
+        .overlay p { font-size: 1.2rem; color: #666; margin-bottom: 30px; }
+        #start-btn {
+            padding: 18px 60px;
+            font-size: 1.4rem;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        #start-btn:hover { opacity: 0.8; }
+    </style>
 </head>
 <body>
-<div id="wrap">
-<div class="header">
-<div class="header-left">
-<div id="score">SCORE: 0</div>
-<div class="bigNote" id="aiLabel">AI: READY</div>
-<div class="streak" id="streakLabel">Combo: 0</div>
-</div>
-<div class="controls">
-<button id="startBtn">START GAME</button>
-<button id="aiBtn">AI</button>
-<button id="manualBtn" class="secondary">MANUAL</button>
-</div>
-</div>
 
-<div class="board-wrap">
-<div id="board"></div>
-<div class="hud">
-<div class="info">Hand pieces</div>
-<div id="pieces" class="pieces-list"></div>
-<div class="info">AI prediction: —</div>
-</div>
-</div>
+    <div id="game-container">
+        <button id="home-btn" class="hidden">終了する</button>
 
-<div class="footer">
-<div>Block Blast — Custom</div>
-<div>Made for you ✨</div>
-</div>
-</div>
+        <header>
+            <div class="stat"><span>TIME</span><div id="timer">30</div></div>
+            <div class="stat"><span>正解</span><div id="score">0</div></div>
+            <div class="stat"><span>不正解</span><div id="mistakes">0</div></div>
+            <div class="stat"><span>COMBO</span><div id="combo">0</div></div>
+        </header>
 
-<script>
-(() => {
+        <main id="game-screen">
+            <p class="instruction">因数分解せよ</p>
+            <div id="question" class="math-expr">---</div>
+            <div id="options" class="options-grid"></div>
+        </main>
 
-const size=8;
-const colors=["#f94144","#f3722c","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#7400b8"];
+        <div id="overlay" class="overlay">
+            <div class="content">
+                <h1 id="overlay-title">因数分解トライアル</h1>
+                <p id="result-text">準備はいいですか？</p>
+                <button id="start-btn">スタート</button>
+            </div>
+        </div>
+    </div>
 
-let board=[];
-let pieces=[];
-let score=0;
-let combo=0;
-let mode="manual";
-let aiBusy=false;
+    <script>
+        // JavaScript: ロジック設定
+        const questions = [
+            { q: "x² + 20x + 100", a: "(x + 10)²", options: ["(x + 10)²", "(x + 2)(x - 1)", "(x + 6)(x - 9)", "(x - 10)²"] },
+            { q: "x² - 20x + 100", a: "(x - 10)²", options: ["(x + 10)²", "(x - 10)²", "(x + 10)(x - 3)", "(x - 1)(x - 5)"] },
+            { q: "x² - 8x + 16", a: "(x - 4)²", options: ["(x + 4)²", "(x - 4)²", "(x + 2)(x + 8)", "(x - 2)(x - 8)"] },
+            { q: "x² + 17x + 70", a: "(x + 10)(x + 7)", options: ["(x + 10)(x + 7)", "(x + 10)(x - 7)", "(x + 7)(x - 10)", "(x - 10)(x - 7)"] },
+            { q: "x² - 12x + 36", a: "(x - 6)²", options: ["(x - 6)²", "(x + 6)²", "(x - 4)(x - 9)", "(x + 4)(x + 9)"] },
+            { q: "x² + 3x - 18", a: "(x + 6)(x - 3)", options: ["(x + 6)(x - 3)", "(x - 6)(x + 3)", "(x + 9)(x - 2)", "(x + 2)(x - 9)"] },
+            { q: "3x² + 24x - 27", a: "3(x + 9)(x - 1)", options: ["3(x + 9)(x - 1)", "3(x + 1)(x + 9)", "3(x - 1)(x - 9)", "3(x + 1)(x - 9)"] }
+        ];
 
-const boardEl=document.getElementById("board");
-const piecesEl=document.getElementById("pieces");
-const scoreEl=document.getElementById("score");
-const streakLabel=document.getElementById("streakLabel");
-const aiLabel=document.getElementById("aiLabel");
+        let score = 0;
+        let mistakes = 0;
+        let combo = 0;
+        let timeLeft = 30;
+        let timerInterval;
 
-const baseShapes=[
-[[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
-[[1],[1]],[[1],[1],[1]],
-[[1,1],[1,1]],[[1,0],[1,1]],[[1,1,1],[0,1,0]],
-[[1,1,1],[1,1,1],[1,1,1]],
-[[1,1,1],[1,1,1]]
-];
+        const timerEl = document.getElementById('timer');
+        const scoreEl = document.getElementById('score');
+        const mistakesEl = document.getElementById('mistakes');
+        const comboEl = document.getElementById('combo');
+        const homeBtn = document.getElementById('home-btn');
+        const startBtn = document.getElementById('start-btn');
+        const overlay = document.getElementById('overlay');
+        const questionEl = document.getElementById('question');
+        const optionsEl = document.getElementById('options');
 
-function randColor(){return colors[Math.floor(Math.random()*colors.length)];}
-function deep(g){return g.map(r=>r.slice());}
-
-function canPlace(shape,y,x,g){
-for(let dy=0;dy<shape.length;dy++)
-for(let dx=0;dx<shape[0].length;dx++)
-if(shape[dy][dx]){
-if(y+dy>=size||x+dx>=size) return false;
-if(g[y+dy][x+dx]) return false;
-}
-return true;
-}
-
-function hasPlacement(p,g){
-for(let y=0;y<size;y++)
-for(let x=0;x<size;x++)
-if(canPlace(p.shape,y,x,g))return true;
-return false;
-}
-
-function generateHand(){
-pieces=[];
-let tries=300;
-
-function count3x3(){
-return pieces.filter(p=>p.shape.length===3 && p.shape[0].length===3).length;
-}
-
-while(pieces.length<3 && tries--){
-let shape;
-const threeCount=count3x3();
-
-if(threeCount===1 && Math.random()<0.5){
-shape=[[1,1,1],[1,1,1],[1,1,1]];
-}
-else if(threeCount===2 && Math.random()<0.7){
-shape=[[1,1,1],[1,1,1]];
-}
-else{
-shape=baseShapes[Math.floor(Math.random()*baseShapes.length)];
-}
-
-const p={shape,color:randColor()};
-if(hasPlacement(p,board)) pieces.push(p);
-}
-
-if(pieces.length<3) alert("GAME OVER");
-}
-
-function simulate(g,p,y,x){
-let grid=deep(g);
-for(let dy=0;dy<p.shape.length;dy++)
-for(let dx=0;dx<p.shape[0].length;dx++)
-if(p.shape[dy][dx]) grid[y+dy][x+dx]=1;
-
-let lines=0;
-for(let r=0;r<size;r++) if(grid[r].every(v=>v)){grid[r].fill(0);lines++;}
-for(let c=0;c<size;c++) if(grid.map(r=>r[c]).every(v=>v)){for(let r=0;r<size;r++)grid[r][c]=0;lines++;}
-
-return {grid,lines};
-}
-
-function evaluate(g,lines){
-  let filled=0;
-  let holes=0;
-  let squareAreaScore=0;
-
-  for(let y=0;y<size;y++){
-    for(let x=0;x<size;x++){
-      if(g[y][x]) filled++;
-
-      // 穴の検出（周囲がブロックで囲まれている空きマス）
-      if(!g[y][x]){
-        let blocked=0;
-        if(y>0 && g[y-1][x]) blocked++;
-        if(y<size-1 && g[y+1][x]) blocked++;
-        if(x>0 && g[y][x-1]) blocked++;
-        if(x<size-1 && g[y][x+1]) blocked++;
-        if(blocked>=3) holes++; 
-      }
-
-      // 2x2の四角形の塊を検出してボーナス
-      if(y<size-1 && x<size-1){
-        if(g[y][x] && g[y+1][x] && g[y][x+1] && g[y+1][x+1]){
-          squareAreaScore += 1;
+        function startGame() {
+            score = 0;
+            mistakes = 0;
+            combo = 0;
+            timeLeft = 30;
+            updateStats();
+            
+            overlay.classList.add('hidden');
+            homeBtn.classList.remove('hidden');
+            
+            nextQuestion();
+            startTimer();
         }
-      }
-      
-      // 3x3の四角形の塊を検出してさらに大きなボーナス
-      if(y<size-2 && x<size-2){
-        if(g[y][x] && g[y+1][x] && g[y+2][x] &&
-           g[y][x+1] && g[y+1][x+1] && g[y+2][x+1] &&
-           g[y][x+2] && g[y+1][x+2] && g[y+2][x+2]){
-          squareAreaScore += 5;
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    endGame("タイムアップ！");
+                }
+                timerEl.innerText = timeLeft;
+            }, 1000);
         }
-      }
-    }
-  }
 
-  let scoreEval=0;
-  
-  // ブロック数が多いことへのペナルティを少し弱くする（塊を作りやすくするため）
-  scoreEval -= filled * 1000;
-  
-  // 穴へのペナルティを重くする（穴があると四角形にならないため）
-  scoreEval -= holes * 5000;
-  
-  // 四角形の面積（塊）が大きいほどAIに高得点を与える
-  scoreEval += squareAreaScore * 3000;
-  
-  // ライン消去はゲームオーバーを防ぐため依然として高く評価
-  scoreEval += lines * 20000;
+        function nextQuestion() {
+            const qData = questions[Math.floor(Math.random() * questions.length)];
+            questionEl.innerText = qData.q;
+            optionsEl.innerHTML = '';
+            
+            // 選択肢をシャッフル
+            [...qData.options].sort(() => Math.random() - 0.5).forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option';
+                btn.innerText = opt;
+                btn.onclick = () => checkAnswer(opt, qData.a);
+                optionsEl.appendChild(btn);
+            });
+        }
 
-  // 全消しボーナス
-  if(filled===0) scoreEval += 200000;
+        function checkAnswer(selected, correct) {
+            if (selected === correct) {
+                score++;
+                combo++;
+                timeLeft += 2; // 正解：+2秒
+                flashEffect('time-plus');
+            } else {
+                mistakes++;
+                combo = 0;
+                timeLeft = Math.max(0, timeLeft - 2); // 不正解：-2秒
+                flashEffect('time-minus');
+            }
+            updateStats();
+            nextQuestion();
+        }
 
-  return scoreEval;
-}
+        function flashEffect(className) {
+            timerEl.classList.add(className);
+            setTimeout(() => timerEl.classList.remove(className), 300);
+        }
 
-function findBestMove(){
+        function updateStats() {
+            scoreEl.innerText = score;
+            mistakesEl.innerText = mistakes;
+            comboEl.innerText = combo;
+            timerEl.innerText = timeLeft;
+        }
 
-function search(g,depth){
-if(depth===0) return evaluate(g,0);
-let best=-Infinity;
+        function endGame(title) {
+            clearInterval(timerInterval);
+            overlay.classList.remove('hidden');
+            homeBtn.classList.add('hidden');
+            
+            document.getElementById('overlay-title').innerText = title;
+            document.getElementById('result-text').innerText = `正解: ${score} | 不正解: ${mistakes}\nお疲れ様でした！`;
+            startBtn.innerText = "もう一度プレイ";
+        }
 
-for(let i=0;i<pieces.length;i++){
-const p=pieces[i];
-for(let y=0;y<size;y++){
-for(let x=0;x<size;x++){
-if(!canPlace(p.shape,y,x,g)) continue;
-const sim=simulate(g,p,y,x);
-const val=evaluate(sim.grid,sim.lines)+search(sim.grid,depth-1)*0.7;
-if(val>best) best=val;
-}}}
-return best===-Infinity?evaluate(g,0):best;
-}
-
-let bestScore=-Infinity;
-let bestMove=null;
-const occ=board.map(r=>r.map(v=>v?1:0));
-
-for(let i=0;i<pieces.length;i++){
-const p=pieces[i];
-for(let y=0;y<size;y++){
-for(let x=0;x<size;x++){
-if(!canPlace(p.shape,y,x,occ)) continue;
-const sim=simulate(occ,p,y,x);
-const future=search(sim.grid,2);
-const total=evaluate(sim.grid,sim.lines)+future;
-if(total>bestScore){
-bestScore=total;
-bestMove={i,y,x};
-}
-}}}
-return bestMove;
-}
-
-function place(p,y,x){
-for(let dy=0;dy<p.shape.length;dy++)
-for(let dx=0;dx<p.shape[0].length;dx++)
-if(p.shape[dy][dx]) board[y+dy][x+dx]=p.color;
-
-let cleared=0;
-for(let r=0;r<size;r++) if(board[r].every(v=>v)){board[r].fill(0);cleared++;}
-for(let c=0;c<size;c++) if(board.map(r=>r[c]).every(v=>v)){for(let r=0;r<size;r++)board[r][c]=0;cleared++;}
-
-score+=cleared*100;
-combo=cleared?combo+1:0;
-}
-
-function draw(){
-boardEl.innerHTML="";
-for(let y=0;y<size;y++)
-for(let x=0;x<size;x++){
-const c=document.createElement("div");c.className="cell";
-if(board[y][x]){
-const b=document.createElement("div");b.className="piece-block";
-b.style.background=board[y][x];
-c.appendChild(b);
-}
-boardEl.appendChild(c);
-}
-
-piecesEl.innerHTML="";
-pieces.forEach((p,i)=>{
-const wrapper=document.createElement("div");
-wrapper.className="piecePreview";
-
-const grid=document.createElement("div");
-grid.style.display="grid";
-grid.style.gridTemplateColumns=`repeat(${p.shape[0].length},18px)`;
-grid.style.gap="3px";
-
-for(let y=0;y<p.shape.length;y++)
-for(let x=0;x<p.shape[0].length;x++){
-const cell=document.createElement("div");
-cell.className="mini";
-if(p.shape[y][x]) cell.style.background=p.color;
-else cell.style.opacity="0";
-grid.appendChild(cell);
-}
-
-wrapper.appendChild(grid);
-
-wrapper.onclick=()=>{
-for(let y=0;y<size;y++)
-for(let x=0;x<size;x++)
-if(canPlace(p.shape,y,x,board)){
-place(p,y,x);
-pieces.splice(i,1);
-if(!pieces.length)generateHand();
-draw();
-return;
-}
-};
-
-piecesEl.appendChild(wrapper);
-});
-
-scoreEl.innerText="SCORE: "+score;
-streakLabel.innerText="Combo: "+combo;
-}
-
-function aiLoop(){
-if(mode!=="ai"||aiBusy)return;
-aiBusy=true;
-aiLabel.innerText="AI: THINKING";
-setTimeout(()=>{
-const move=findBestMove();
-if(!move){aiLabel.innerText="AI: GAME OVER";return;}
-place(pieces[move.i],move.y,move.x);
-pieces.splice(move.i,1);
-if(!pieces.length)generateHand();
-draw();
-aiBusy=false;
-setTimeout(aiLoop,200);
-},100);
-}
-
-document.getElementById("startBtn").onclick=()=>{
-board=Array(size).fill().map(()=>Array(size).fill(0));
-score=0;combo=0;
-generateHand();
-draw();
-};
-
-document.getElementById("aiBtn").onclick=()=>{mode="ai";aiLoop();};
-document.getElementById("manualBtn").onclick=()=>{mode="manual";aiLabel.innerText="AI: PAUSED";};
-
-board=Array(size).fill().map(()=>Array(size).fill(0));
-generateHand();
-draw();
-
-})();
-</script>
+        startBtn.addEventListener('click', startGame);
+        homeBtn.addEventListener('click', () => endGame("中断しました"));
+    </script>
 </body>
 </html>
