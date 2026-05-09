@@ -3,200 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>因数分解トライアル - PURE</title>
+    <title>因数分解トライアル - EXTREME</title>
     <style>
-        :root {
-            --bg: #ffffff;
-            --text: #1a1a1a;
-            --accent: #007aff;
-            --error: #ff3b30;
-            --success: #34c759;
-            --border: #e5e5e5;
-        }
-
+        /* CSS: 全体のデザイン */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #f5f5f7;
-            color: var(--text);
+            font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            background-color: #f0f2f5;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
+            color: #333;
             overflow: hidden;
         }
 
         #game-container {
-            width: 90%;
-            max-width: 600px;
-            background: var(--bg);
+            width: 95%;
+            max-width: 850px;
+            height: 650px;
+            background: white;
             border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-            padding: 40px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            padding: 30px;
             position: relative;
             display: flex;
             flex-direction: column;
         }
 
-        /* ヘッダー：シンプルに情報を整理 */
+        /* 終了ボタン */
+        #home-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #fff;
+            border: 2px solid #ddd;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            z-index: 100;
+        }
+        #home-btn:hover { background: #f8f8f8; }
+
+        /* ヘッダー統計 */
         header {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat { text-align: center; }
-        .stat span { font-size: 0.75rem; color: #86868b; font-weight: 600; display: block; margin-bottom: 4px; }
-        .stat div { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-
-        /* 問題エリア：視認性を最大化 */
-        .question-area {
-            height: 120px;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 40px;
+            justify-content: space-around;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
         }
+        .stat { text-align: center; min-width: 80px; }
+        .stat span { font-size: 0.75rem; color: #888; font-weight: bold; display: block; }
+        .stat div { font-size: 1.8rem; font-weight: bold; }
 
+        /* 問題エリア */
         .math-expr {
             font-size: 2.8rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
+            text-align: center;
+            margin: 60px 0;
+            font-weight: bold;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        /* 選択肢：モダンなタイル形状 */
+        /* フィードバック表示 (clear! / mis!) */
+        #feedback {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 6rem;
+            font-weight: bold;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+        }
+        .show-clear { color: #28a745; animation: feedback-anim 0.6s ease-out; }
+        .show-mis { color: #dc3545; animation: feedback-anim 0.6s ease-out; }
+
+        @keyframes feedback-anim {
+            0% { opacity: 0; transform: translate(-50%, -40%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -60%) scale(1); }
+        }
+
+        /* 選択肢 */
         .options-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 15px;
+            margin-top: auto;
         }
-
         .option {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            padding: 20px;
-            font-size: 1.1rem;
-            font-weight: 500;
+            padding: 18px;
+            font-size: 1.2rem;
+            border: 2px solid #eee;
             border-radius: 12px;
+            background: white;
             cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            color: var(--text);
+            transition: all 0.2s;
+            line-height: 1.4;
         }
+        .option:hover { border-color: #333; background-color: #fdfdfd; }
 
-        .option:hover {
-            border-color: var(--accent);
-            background-color: rgba(0, 122, 255, 0.02);
-        }
-
-        .option:active {
-            transform: scale(0.98);
-            background-color: rgba(0, 122, 255, 0.05);
-        }
-
-        /* コンボ表示：控えめだが達成感のある演出 */
-        #combo-display {
-            font-size: 0.9rem;
-            font-weight: 700;
-            color: var(--accent);
-            height: 1.2rem;
-            margin-top: 8px;
-        }
+        /* 特殊効果 */
+        #timer.time-plus { color: #28a745; transform: scale(1.3); }
+        #timer.time-minus { color: #dc3545; transform: scale(1.3); }
+        #timer { transition: 0.2s; }
+        .hidden { display: none !important; }
 
         /* オーバーレイ */
         .overlay {
             position: absolute;
-            inset: 0;
-            background: rgba(255, 255, 255, 0.95);
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.98);
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 100;
-            border-radius: 20px;
+            z-index: 200;
             text-align: center;
-            backdrop-filter: blur(10px);
         }
-
-        h1 { font-size: 2rem; margin-bottom: 10px; }
-        p { color: #86868b; line-height: 1.6; }
-
         #start-btn {
-            margin-top: 30px;
-            background: var(--text);
-            color: white;
-            border: none;
-            padding: 14px 40px;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 30px;
-            cursor: pointer;
-            transition: opacity 0.2s;
+            padding: 18px 60px;
+            font-size: 1.4rem;
+            background: #333; color: white;
+            border: none; border-radius: 50px; cursor: pointer;
         }
-
-        #start-btn:hover { opacity: 0.8; }
-
-        .hidden { display: none; }
     </style>
 </head>
 <body>
 
     <div id="game-container">
+        <button id="home-btn" class="hidden">終了する</button>
+
         <header>
             <div class="stat"><span>TIME</span><div id="timer">30</div></div>
-            <div class="stat"><span>SCORE</span><div id="score">0</div></div>
-            <div class="stat"><span>MAX COMBO</span><div id="max-combo">0</div></div>
+            <div class="stat"><span>正解</span><div id="score">0</div></div>
+            <div class="stat"><span>不正解</span><div id="mistakes">0</div></div>
+            <div class="stat"><span>COMBO</span><div id="combo">0</div></div>
         </header>
 
-        <div class="question-area">
-            <div id="question" class="math-expr">---</div>
-            <div id="combo-display"></div>
-        </div>
+        <div id="feedback"></div>
 
-        <div id="options" class="options-grid"></div>
+        <main id="game-screen">
+            <div id="question" class="math-expr">---</div>
+            <div id="options" class="options-grid"></div>
+        </main>
 
         <div id="overlay" class="overlay">
-            <h1 id="title">FACTORIZE</h1>
-            <p id="description">正確かつ迅速に解き続けろ。<br>正解 +2s / 誤答 -3s</p>
-            <div id="result-stats" class="hidden">
-                <h2 id="final-rank" style="color: var(--accent);"></h2>
+            <div class="content">
+                <h1 id="overlay-title">因数分解トライアル</h1>
+                <p id="result-text">【難易度UP】複雑な問題も登場！<br>正解:+2秒 / ミス:-2秒</p>
+                <button id="start-btn">スタート</button>
             </div>
-            <button id="start-btn">START</button>
         </div>
     </div>
 
     <script>
+        // 問題リスト：基本から難問（たすき掛け、複数段階）まで
         const questions = [
-            { q: "x² - 10x + 25", a: "(x - 5)²", options: ["(x - 5)²", "(x + 4)²", "(x - 25)(x - 1)", "(x - 5)(x + 5)"] },
-            { q: "x² + 7x + 12", a: "(x + 3)(x + 4)", options: ["(x + 3)(x + 4)", "(x + 2)(x + 6)", "(x + 7)(x + 1)", "(x - 3)(x - 4)"] },
-            { q: "x² - 64", a: "(x + 8)(x - 8)", options: ["(x + 8)(x - 8)", "(x - 8)²", "(x + 4)(x - 16)", "x(x - 64)"] },
-            { q: "x² - 5x - 14", a: "(x - 7)(x + 2)", options: ["(x - 7)(x + 2)", "(x + 7)(x - 2)", "(x - 14)(x + 1)", "(x - 2)(x - 7)"] },
-            { q: "3x² + 12x + 12", a: "3(x + 2)²", options: ["3(x + 2)²", "3(x + 4)(x + 1)", "3(x + 2)(x - 2)", "(3x + 6)(x + 2)"] },
-            { q: "2x² - 18", a: "2(x + 3)(x - 3)", options: ["2(x + 3)(x - 3)", "2(x - 3)²", "2(x + 9)(x - 9)", "(2x - 6)(x + 3)"] },
-            { q: "2x² + 7x + 3", a: "(2x + 1)(x + 3)", options: ["(2x + 1)(x + 3)", "(2x + 3)(x + 1)", "(x + 3)²", "(2x - 1)(x - 3)"] },
-            { q: "x² - 2xy + y²", a: "(x - y)²", options: ["(x - y)²", "(x + y)²", "(x - y)(x + y)", "x(x - 2y)"] },
-            { q: "x² + 13x + 36", a: "(x + 4)(x + 9)", options: ["(x + 4)(x + 9)", "(x + 6)²", "(x + 3)(x + 12)", "(x - 4)(x - 9)"] },
-            { q: "5x² - 20x + 15", a: "5(x - 1)(x - 3)", options: ["5(x - 1)(x - 3)", "5(x - 2)²", "5(x + 1)(x + 3)", "(5x - 5)(x - 3)"] }
+            // 標準
+            { q: "x² - 8x + 16", a: "(x - 4)²", options: ["(x - 4)²", "(x + 4)²", "(x - 8)(x + 2)", "(x - 2)(x - 8)"] },
+            { q: "x² + 3x - 18", a: "(x + 6)(x - 3)", options: ["(x + 6)(x - 3)", "(x - 6)(x + 3)", "(x + 9)(x - 2)", "(x + 2)(x - 9)"] },
+            
+            // 係数あり・複雑
+            { q: "4x² + 16x + 4", a: "4(x² + 4x + 1)", options: ["4(x² + 4x + 1)", "4(x + 2)²", "(2x + 2)²", "4(x + 1)²"] },
+            { q: "16x² + 16x + 4", a: "4(2x + 1)²", options: ["4(2x + 1)²", "4(4x + 1)²", "(4x + 2)²", "4(2x + 2)²"] },
+            { q: "3x² - 12", a: "3(x + 2)(x - 2)", options: ["3(x + 2)(x - 2)", "3(x - 2)²", "3(x + 4)(x - 4)", "(3x + 6)(x - 2)"] },
+            
+            // たすき掛け・応用
+            { q: "2x² + 5x + 3", a: "(2x + 3)(x + 1)", options: ["(2x + 3)(x + 1)", "(2x + 1)(x + 3)", "(x + 2)(2x + 1.5)", "(2x - 3)(x - 1)"] },
+            { q: "3x² + 10x + 3", a: "(3x + 1)(x + 3)", options: ["(3x + 1)(x + 3)", "(3x + 3)(x + 1)", "(x + 3)²", "(3x - 1)(x - 3)"] },
+            { q: "6x² - 7x + 2", a: "(2x - 1)(3x - 2)", options: ["(2x - 1)(3x - 2)", "(3x - 1)(2x - 2)", "(6x - 1)(x - 2)", "(2x + 1)(3x + 2)"] },
+            
+            // 共通因数でくくる + 因数分解
+            { q: "2x² - 20x + 50", a: "2(x - 5)²", options: ["2(x - 5)²", "2(x + 5)²", "(2x - 10)(x - 5)", "2(x - 10)(x - 5)"] },
+            { q: "ax² - ay²", a: "a(x + y)(x - y)", options: ["a(x + y)(x - y)", "a(x - y)²", "(ax + ay)(x - y)", "a(x² - y²)"] }
         ];
 
-        let score = 0, combo = 0, maxCombo = 0, timeLeft = 30, timerInterval;
+        let score = 0, mistakes = 0, combo = 0, timeLeft = 30, timerInterval;
 
         const timerEl = document.getElementById('timer'),
               scoreEl = document.getElementById('score'),
-              maxComboEl = document.getElementById('max-combo'),
-              comboDisp = document.getElementById('combo-display'),
+              mistakesEl = document.getElementById('mistakes'),
+              comboEl = document.getElementById('combo'),
+              homeBtn = document.getElementById('home-btn'),
+              startBtn = document.getElementById('start-btn'),
+              overlay = document.getElementById('overlay'),
               questionEl = document.getElementById('question'),
               optionsEl = document.getElementById('options'),
-              overlay = document.getElementById('overlay'),
-              startBtn = document.getElementById('start-btn');
+              feedbackEl = document.getElementById('feedback');
 
         function startGame() {
-            score = 0; combo = 0; maxCombo = 0; timeLeft = 30;
+            score = 0; mistakes = 0; combo = 0; timeLeft = 30;
             updateStats();
             overlay.classList.add('hidden');
-            document.getElementById('result-stats').classList.add('hidden');
+            homeBtn.classList.remove('hidden');
             nextQuestion();
             startTimer();
         }
@@ -205,16 +211,19 @@
             clearInterval(timerInterval);
             timerInterval = setInterval(() => {
                 timeLeft--;
-                if (timeLeft <= 0) endGame();
+                if (timeLeft <= 0) { timeLeft = 0; endGame("タイムアップ！"); }
                 timerEl.innerText = timeLeft;
             }, 1000);
         }
 
         function nextQuestion() {
+            // ランダムに問題を選択
             const qData = questions[Math.floor(Math.random() * questions.length)];
-            questionEl.innerText = qData.q;
-            optionsEl.innerHTML = '';
             
+            // 指数表示を綺麗にするため、²をそのまま使用（またはHTMLタグ化可能）
+            questionEl.innerText = qData.q;
+            
+            optionsEl.innerHTML = '';
             [...qData.options].sort(() => Math.random() - 0.5).forEach(opt => {
                 const btn = document.createElement('button');
                 btn.className = 'option';
@@ -225,48 +234,47 @@
         }
 
         function checkAnswer(selected, correct) {
+            feedbackEl.className = ''; 
+            void feedbackEl.offsetWidth; // リフロー強制でアニメ再始動
+
             if (selected === correct) {
-                score++;
-                combo++;
-                maxCombo = Math.max(maxCombo, combo);
-                timeLeft += 2;
-                comboDisp.innerText = `${combo} COMBO`;
+                score++; combo++; timeLeft += 2;
+                feedbackEl.innerText = "clear!";
+                feedbackEl.classList.add('show-clear');
+                timerEl.classList.add('time-plus');
             } else {
-                combo = 0;
-                timeLeft -= 3;
-                comboDisp.innerText = "";
+                mistakes++; combo = 0; timeLeft = Math.max(0, timeLeft - 2);
+                feedbackEl.innerText = "mis!";
+                feedbackEl.classList.add('show-mis');
+                timerEl.classList.add('time-minus');
             }
+            
+            setTimeout(() => {
+                timerEl.classList.remove('time-plus', 'time-minus');
+            }, 300);
+
             updateStats();
             nextQuestion();
         }
 
         function updateStats() {
             scoreEl.innerText = score;
-            maxComboEl.innerText = maxCombo;
+            mistakesEl.innerText = mistakes;
+            comboEl.innerText = combo;
             timerEl.innerText = timeLeft;
         }
 
-        function getRank(s) {
-            if (s >= 30) return "MASTER";
-            if (s >= 20) return "EXPERT";
-            if (s >= 10) return "ADVANCED";
-            return "BEGINNER";
-        }
-
-        function endGame() {
+        function endGame(title) {
             clearInterval(timerInterval);
             overlay.classList.remove('hidden');
-            document.getElementById('title').innerText = "FINISH";
-            document.getElementById('description').innerHTML = `SCORE: ${score}<br>MAX COMBO: ${maxCombo}`;
-            
-            const rankArea = document.getElementById('result-stats');
-            rankArea.classList.remove('hidden');
-            document.getElementById('final-rank').innerText = `RANK: ${getRank(score)}`;
-            
-            startBtn.innerText = "RETRY";
+            homeBtn.classList.add('hidden');
+            document.getElementById('overlay-title').innerText = title;
+            document.getElementById('result-text').innerText = `最終正解数: ${score}問\nコンボ最大: ${combo}`;
+            startBtn.innerText = "再挑戦する";
         }
 
         startBtn.addEventListener('click', startGame);
+        homeBtn.addEventListener('click', () => endGame("中断しました"));
     </script>
 </body>
 </html>
