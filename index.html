@@ -2,286 +2,109 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>因数分解トライアル - PATTERN</title>
+    <title>世界一性格の悪いゲーム</title>
     <style>
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f0f2f5;
+            margin: 0;
+            height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
-            color: #333;
+            background-color: #1a1a1a;
+            font-family: sans-serif;
             overflow: hidden;
+            cursor: crosshair;
         }
 
         #game-container {
-            width: 95%;
-            max-width: 850px;
-            height: 650px;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-            padding: 30px;
-            position: relative;
-            display: flex;
-            flex-direction: column;
+            text-align: center;
+            color: white;
         }
 
-        #home-btn {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            background: #fff;
-            border: 2px solid #ddd;
-            border-radius: 30px;
-            cursor: pointer;
+        /* 逃げるボタン */
+        #troll-button {
+            padding: 15px 30px;
+            font-size: 20px;
             font-weight: bold;
+            background-color: #ff4757;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            position: absolute;
+            transition: all 0.1s ease;
+        }
+
+        /* 偽のロード画面 */
+        #fake-loader {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
             z-index: 100;
-        }
-
-        header {
-            display: flex;
-            justify-content: space-around;
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-        }
-        .stat { text-align: center; min-width: 80px; }
-        .stat span { font-size: 0.75rem; color: #888; font-weight: bold; display: block; }
-        .stat div { font-size: 1.8rem; font-weight: bold; }
-
-        .math-expr {
-            font-size: 2.8rem;
-            text-align: center;
-            margin: 60px 0;
-            font-weight: bold;
-            min-height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #feedback {
-            position: absolute;
-            top: 45%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 6rem;
-            font-weight: bold;
-            opacity: 0;
-            pointer-events: none;
-            z-index: 50;
-        }
-        .show-clear { color: #28a745; animation: feedback-anim 0.6s ease-out; }
-        .show-mis { color: #dc3545; animation: feedback-anim 0.6s ease-out; }
-
-        @keyframes feedback-anim {
-            0% { opacity: 0; transform: translate(-50%, -40%) scale(0.5); }
-            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-            100% { opacity: 0; transform: translate(-50%, -60%) scale(1); }
-        }
-
-        .options-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr; /* [0]左上 [1]右上 / [2]左下 [3]右下 */
-            gap: 15px;
-            margin-top: auto;
-        }
-        
-        /* ボタンの並びを[左上, 右上, 左下, 右下]の順に並べるための設定 */
-        .option {
-            padding: 18px;
-            font-size: 1.2rem;
-            border: 2px solid #eee;
-            border-radius: 12px;
-            background: white;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .option:hover { border-color: #333; background-color: #fdfdfd; }
-
-        #timer { transition: 0.2s; }
-        .time-plus { color: #28a745; transform: scale(1.3); }
-        .time-minus { color: #dc3545; transform: scale(1.3); }
-        .hidden { display: none !important; }
-
-        .overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255,255,255,0.98);
-            display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 200;
-            text-align: center;
         }
-        #start-btn {
-            padding: 18px 60px;
-            font-size: 1.4rem;
-            background: #333; color: white;
-            border: none; border-radius: 50px; cursor: pointer;
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
         }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <button id="home-btn" class="hidden">終了する</button>
+<div id="game-container">
+    <h1 id="status-text">ボタンをクリックしてクリア！</h1>
+    <p>（残り 100回クリック）</p>
+    <button id="troll-button" style="top: 50%; left: 50%;">ここをクリック</button>
+</div>
 
-        <header>
-            <div class="stat"><span>TIME</span><div id="timer">30</div></div>
-            <div class="stat"><span>正解</span><div id="score">0</div></div>
-            <div class="stat"><span>不正解</span><div id="mistakes">0</div></div>
-            <div class="stat"><span>COMBO</span><div id="combo">0</div></div>
-        </header>
+<div id="fake-loader">
+    <div class="spinner"></div>
+    <p id="loading-text">データを保存中... (99%)</p>
+</div>
 
-        <div id="feedback"></div>
+<script>
+    const btn = document.getElementById('troll-button');
+    const status = document.getElementById('status-text');
+    const loader = document.getElementById('fake-loader');
+    let count = 0;
 
-        <main id="game-screen">
-            <div id="question" class="math-expr">---</div>
-            <div id="options" class="options-grid"></div>
-        </main>
+    // 1. マウスが近づくと逃げる機能
+    btn.addEventListener('mouseover', () => {
+        const x = Math.random() * (window.innerWidth - btn.clientWidth);
+        const y = Math.random() * (window.innerHeight - btn.clientHeight);
+        btn.style.left = x + 'px';
+        btn.style.top = y + 'px';
+    });
 
-        <div id="overlay" class="overlay">
-            <div class="content">
-                <h1 id="overlay-title">因数分解トライアル</h1>
-                <p id="result-text">正解の場所：左上→左下→右下→右上...の順</p>
-                <button id="start-btn">スタート</button>
-            </div>
-        </div>
-    </div>
+    // 2. もしクリックできても（JavaScript的に）無効化
+    btn.addEventListener('click', () => {
+        alert("エラー：クリックが無効です。もう一度やり直してください。");
+        location.reload(); // 強制リセット
+    });
 
-    <script>
-        const questions = [
-            { q: "x² - 8x + 16", a: "(x - 4)²", dummy: ["(x + 4)²", "(x - 8)(x + 2)", "(x - 2)(x - 8)"] },
-            { q: "x² + 3x - 18", a: "(x + 6)(x - 3)", dummy: ["(x - 6)(x + 3)", "(x + 9)(x - 2)", "(x + 2)(x - 9)"] },
-            { q: "4x² + 16x + 4", a: "4(x² + 4x + 1)", dummy: ["4(x + 2)²", "(2x + 2)²", "4(x + 1)²"] },
-            { q: "16x² + 16x + 4", a: "4(2x + 1)²", dummy: ["4(4x + 1)²", "(4x + 2)²", "4(2x + 2)²"] },
-            { q: "3x² - 12", a: "3(x + 2)(x - 2)", dummy: ["3(x - 2)²", "3(x + 4)(x - 4)", "(3x + 6)(x - 2)"] },
-            { q: "2x² + 5x + 3", a: "(2x + 3)(x + 1)", dummy: ["(2x + 1)(x + 3)", "(x + 2)(2x + 1.5)", "(2x - 3)(x - 1)"] },
-            { q: "3x² + 10x + 3", a: "(3x + 1)(x + 3)", dummy: ["(3x + 3)(x + 1)", "(x + 3)²", "(3x - 1)(x - 3)"] },
-            { q: "6x² - 7x + 2", a: "(2x - 1)(3x - 2)", dummy: ["(3x - 1)(2x - 2)", "(6x - 1)(x - 2)", "(2x + 1)(3x + 2)"] },
-            { q: "2x² - 20x + 50", a: "2(x - 5)²", dummy: ["2(x + 5)²", "(2x - 10)(x - 5)", "2(x - 10)(x - 5)"] },
-            { q: "ax² - ay²", a: "a(x + y)(x - y)", dummy: ["a(x - y)²", "(ax + ay)(x - y)", "a(x² - y²)"] }
-        ];
+    // 3. 5秒ごとに「惜しい！」などの煽りメッセージを表示
+    setInterval(() => {
+        const taunts = ["遅すぎますよ？", "本気でやってます？", "手が震えてますね", "あ、今触れそうでしたねｗ"];
+        status.innerText = taunts[Math.floor(Math.random() * taunts.length)];
+    }, 3000);
 
-        // グリッド位置のインデックス: [0:左上, 1:右上, 2:左下, 3:右下]
-        // 指定された順序: 左上(0) -> 左下(2) -> 右下(3) -> 右上(1)
-        const patternOrder = [0, 2, 3, 1];
-        let currentPatternIndex = 0;
-
-        let score = 0, mistakes = 0, combo = 0, timeLeft = 30, timerInterval;
-
-        const timerEl = document.getElementById('timer'),
-              scoreEl = document.getElementById('score'),
-              mistakesEl = document.getElementById('mistakes'),
-              comboEl = document.getElementById('combo'),
-              homeBtn = document.getElementById('home-btn'),
-              startBtn = document.getElementById('start-btn'),
-              overlay = document.getElementById('overlay'),
-              questionEl = document.getElementById('question'),
-              optionsEl = document.getElementById('options'),
-              feedbackEl = document.getElementById('feedback');
-
-        function startGame() {
-            score = 0; mistakes = 0; combo = 0; timeLeft = 30;
-            currentPatternIndex = 0;
-            updateStats();
-            overlay.classList.add('hidden');
-            homeBtn.classList.remove('hidden');
-            nextQuestion();
-            startTimer();
+    // 4. 開発者ツール（F12）を開こうとすると警告が出る（簡易的）
+    window.addEventListener('keydown', (e) => {
+        if(e.keyCode == 123) {
+            alert("チートは禁止です。自分の実力でクリアしてください。");
+            e.preventDefault();
         }
-
-        function startTimer() {
-            clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                timeLeft--;
-                if (timeLeft <= 0) { timeLeft = 0; endGame("タイムアップ！"); }
-                timerEl.innerText = timeLeft;
-            }, 1000);
-        }
-
-        function nextQuestion() {
-            const qData = questions[Math.floor(Math.random() * questions.length)];
-            questionEl.innerText = qData.q;
-            optionsEl.innerHTML = '';
-            
-            // 4つの空のスロットを作成
-            const slots = new Array(4).fill(null);
-            
-            // 現在のパターンに基づいた位置に正解を配置
-            const correctPos = patternOrder[currentPatternIndex];
-            slots[correctPos] = { text: qData.a, isCorrect: true };
-            
-            // 残りのスロットにダミーを配置
-            let dummyIdx = 0;
-            for(let i=0; i<4; i++) {
-                if(slots[i] === null) {
-                    slots[i] = { text: qData.dummy[dummyIdx], isCorrect: false };
-                    dummyIdx++;
-                }
-            }
-
-            // ボタン作成
-            slots.forEach(slot => {
-                const btn = document.createElement('button');
-                btn.className = 'option';
-                btn.innerText = slot.text;
-                btn.onclick = () => checkAnswer(slot.isCorrect);
-                optionsEl.appendChild(btn);
-            });
-        }
-
-        function checkAnswer(isCorrect) {
-            feedbackEl.className = ''; 
-            void feedbackEl.offsetWidth; 
-
-            if (isCorrect) {
-                score++; combo++; timeLeft += 2;
-                feedbackEl.innerText = "clear!";
-                feedbackEl.classList.add('show-clear');
-                timerEl.classList.add('time-plus');
-                
-                // 正解した時だけ次のパターンへ進む
-                currentPatternIndex = (currentPatternIndex + 1) % patternOrder.length;
-            } else {
-                mistakes++; combo = 0; timeLeft = Math.max(0, timeLeft - 2);
-                feedbackEl.innerText = "mis!";
-                feedbackEl.classList.add('show-mis');
-                timerEl.classList.add('time-minus');
-            }
-            
-            setTimeout(() => {
-                timerEl.classList.remove('time-plus', 'time-minus');
-            }, 300);
-
-            updateStats();
-            nextQuestion();
-        }
-
-        function updateStats() {
-            scoreEl.innerText = score;
-            mistakesEl.innerText = mistakes;
-            comboEl.innerText = combo;
-            timerEl.innerText = timeLeft;
-        }
-
-        function endGame(title) {
-            clearInterval(timerInterval);
-            overlay.classList.remove('hidden');
-            homeBtn.classList.add('hidden');
-            document.getElementById('overlay-title').innerText = title;
-            document.getElementById('result-text').innerText = `最終正解数: ${score}問`;
-            startBtn.innerText = "再挑戦する";
-        }
-
-        startBtn.addEventListener('click', startGame);
-        homeBtn.addEventListener('click', () => endGame("中断しました"));
-    </script>
+    });
+</script>
 </body>
 </html>
