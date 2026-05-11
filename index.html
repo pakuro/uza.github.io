@@ -2,109 +2,138 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>世界一性格の悪いゲーム</title>
+    <title>数学早押しクイズ - 因数分解・展開</title>
     <style>
-        body {
-            margin: 0;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #1a1a1a;
-            font-family: sans-serif;
-            overflow: hidden;
-            cursor: crosshair;
-        }
-
-        #game-container {
-            text-align: center;
-            color: white;
-        }
-
-        /* 逃げるボタン */
-        #troll-button {
-            padding: 15px 30px;
-            font-size: 20px;
-            font-weight: bold;
-            background-color: #ff4757;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            position: absolute;
-            transition: all 0.1s ease;
-        }
-
-        /* 偽のロード画面 */
-        #fake-loader {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
-            z-index: 100;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        #game-container { background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 400px; text-align: center; }
+        h1 { color: #333; font-size: 1.5rem; }
+        #timer { font-size: 2rem; font-weight: bold; color: #ff4757; margin: 10px 0; }
+        #question { font-size: 1.8rem; margin: 20px 0; color: #2f3542; min-height: 2.2rem; }
+        input { width: 80%; padding: 10px; font-size: 1.2rem; border: 2px solid #ddd; border-radius: 5px; outline: none; transition: border-color 0.3s; }
+        input:focus { border-color: #3742fa; }
+        #score { margin-top: 15px; color: #747d8c; }
+        .hidden { display: none; }
+        #message { color: #ff4757; font-weight: bold; margin-top: 10px; }
+        button { background: #3742fa; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 1rem; margin-top: 10px; }
+        button:hover { background: #2f3542; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <h1 id="status-text">ボタンをクリックしてクリア！</h1>
-    <p>（残り 100回クリック）</p>
-    <button id="troll-button" style="top: 50%; left: 50%;">ここをクリック</button>
-</div>
+    <h1>数学早押しクイズ</h1>
+    <div id="start-screen">
+        <p>因数分解と展開の問題が出ます。<br>制限時間は各10秒！</p>
+        <p><small>※ (x+1)(x+2) のように入力してください</small></p>
+        <button onclick="startGame()">ゲーム開始</button>
+    </div>
 
-<div id="fake-loader">
-    <div class="spinner"></div>
-    <p id="loading-text">データを保存中... (99%)</p>
+    <div id="game-play" class="hidden">
+        <div id="timer">10.0</div>
+        <div id="question"></div>
+        <input type="text" id="answer-input" placeholder="答えを入力..." autocomplete="off">
+        <div id="score">スコア: 0</div>
+        <div id="message"></div>
+    </div>
+
+    <div id="result-screen" class="hidden">
+        <h2>GAME OVER</h2>
+        <p id="final-score"></p>
+        <button onclick="startGame()">もう一度挑戦</button>
+    </div>
 </div>
 
 <script>
-    const btn = document.getElementById('troll-button');
-    const status = document.getElementById('status-text');
-    const loader = document.getElementById('fake-loader');
-    let count = 0;
+    let score = 0;
+    let timeLeft = 10.0;
+    let timerInterval;
+    let currentAnswer = "";
+    
+    const questionEl = document.getElementById('question');
+    const inputEl = document.getElementById('answer-input');
+    const timerEl = document.getElementById('timer');
+    const scoreEl = document.getElementById('score');
+    const messageEl = document.getElementById('message');
 
-    // 1. マウスが近づくと逃げる機能
-    btn.addEventListener('mouseover', () => {
-        const x = Math.random() * (window.innerWidth - btn.clientWidth);
-        const y = Math.random() * (window.innerHeight - btn.clientHeight);
-        btn.style.left = x + 'px';
-        btn.style.top = y + 'px';
-    });
+    // 問題生成
+    function generateQuestion() {
+        const type = Math.random() > 0.5 ? 'expand' : 'factorize';
+        const a = Math.floor(Math.random() * 9) + 1; // 1-9
+        const b = Math.floor(Math.random() * 9) + 1; // 1-9
+        
+        // (x+a)(x+b) = x^2 + (a+b)x + ab
+        const sum = a + b;
+        const prod = a * b;
 
-    // 2. もしクリックできても（JavaScript的に）無効化
-    btn.addEventListener('click', () => {
-        alert("エラー：クリックが無効です。もう一度やり直してください。");
-        location.reload(); // 強制リセット
-    });
+        if (type === 'expand') {
+            questionEl.innerText = `(x+${a})(x+${b}) を展開`;
+            // 答えのパターン（x^2+7x+10 等）
+            currentAnswer = `x^2+${sum}x+${prod}`;
+        } else {
+            questionEl.innerText = `x^2+${sum}x+${prod} を因数分解`;
+            // 答えのパターン（(x+a)(x+b) または (x+b)(x+a)）
+            currentAnswer = [`(x+${a})(x+${b})`, `(x+${b})(x+${a})`].map(s => s.replace(/\s+/g, ''));
+        }
+    }
 
-    // 3. 5秒ごとに「惜しい！」などの煽りメッセージを表示
-    setInterval(() => {
-        const taunts = ["遅すぎますよ？", "本気でやってます？", "手が震えてますね", "あ、今触れそうでしたねｗ"];
-        status.innerText = taunts[Math.floor(Math.random() * taunts.length)];
-    }, 3000);
+    function startGame() {
+        score = 0;
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.add('hidden');
+        document.getElementById('game-play').classList.remove('hidden');
+        nextQuestion();
+    }
 
-    // 4. 開発者ツール（F12）を開こうとすると警告が出る（簡易的）
-    window.addEventListener('keydown', (e) => {
-        if(e.keyCode == 123) {
-            alert("チートは禁止です。自分の実力でクリアしてください。");
-            e.preventDefault();
+    function nextQuestion() {
+        scoreEl.innerText = `スコア: ${score}`;
+        inputEl.value = "";
+        inputEl.focus();
+        messageEl.innerText = "";
+        generateQuestion();
+        resetTimer();
+    }
+
+    function resetTimer() {
+        clearInterval(timerInterval);
+        timeLeft = 10.0;
+        timerEl.innerText = timeLeft.toFixed(1);
+        
+        timerInterval = setInterval(() => {
+            timeLeft -= 0.1;
+            timerEl.innerText = timeLeft.toFixed(1);
+            if (timeLeft <= 0) {
+                gameOver("タイムアップ！");
+            }
+        }, 100);
+    }
+
+    function gameOver(msg) {
+        clearInterval(timerInterval);
+        document.getElementById('game-play').classList.add('hidden');
+        document.getElementById('result-screen').classList.remove('hidden');
+        document.getElementById('final-score').innerText = `${msg}\n最終スコア: ${score}`;
+    }
+
+    inputEl.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const userAns = inputEl.value.replace(/\s+/g, '').toLowerCase();
+            let isCorrect = false;
+
+            if (Array.isArray(currentAnswer)) {
+                isCorrect = currentAnswer.includes(userAns);
+            } else {
+                isCorrect = (userAns === currentAnswer);
+            }
+
+            if (isCorrect) {
+                score++;
+                nextQuestion();
+            } else {
+                gameOver(`不正解！ 正解は: ${Array.isArray(currentAnswer) ? currentAnswer[0] : currentAnswer}`);
+            }
         }
     });
 </script>
+
 </body>
 </html>
