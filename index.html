@@ -2,148 +2,153 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>数学4択早押しクイズ - 見やすい版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>因数分解トライアル - 統合版</title>
     <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #eef2f7; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
-        #game-container { background: white; padding: 2rem; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 450px; text-align: center; }
-        #timer-bar-container { width: 100%; height: 10px; background: #eee; border-radius: 5px; margin: 20px 0; overflow: hidden; }
-        #timer-bar { width: 100%; height: 100%; background: #ff4757; transition: width 0.1s linear; }
-        #question { font-size: 1.8rem; font-weight: bold; margin: 30px 0; color: #2f3542; min-height: 2.5rem; }
-        .choices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .choice-btn { background: #f8f9fa; border: 2px solid #dfe4ea; padding: 15px; border-radius: 10px; font-size: 1.1rem; cursor: pointer; transition: all 0.2s; color: #2f3542; }
-        .choice-btn:hover { background: #3742fa; color: white; border-color: #3742fa; transform: translateY(-2px); }
-        .choice-btn:active { transform: translateY(0); }
-        #score-display { font-size: 1.1rem; color: #747d8c; margin-bottom: 10px; }
+        /* CSS: デザイン部分 */
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #eef2f3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #game-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 400px;
+        }
+        h1 { color: #333; font-size: 24px; }
+        #formula {
+            font-size: 28px;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            min-height: 40px;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        .btn:hover { background-color: #2980b9; }
+        #score-board { margin-top: 20px; font-weight: bold; color: #555; }
         .hidden { display: none; }
-        h1 { margin-top: 0; color: #3742fa; }
-        button.start-btn { background: #3742fa; color: white; border: none; padding: 15px 40px; border-radius: 30px; font-size: 1.2rem; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div id="start-screen">
-        <h1>数学 4択クイズ</h1>
-        <p>制限時間は1問10秒！</p>
-        <button class="start-btn" onclick="startGame()">ゲームスタート</button>
+    <h1>因数分解トライアル</h1>
+    
+    <div id="menu">
+        <p>難易度を選んでください</p>
+        <button class="btn" onclick="startGame(1)">Lv.1 (x² + px + q)</button>
+        <button class="btn" onclick="startGame(2)">Lv.2 (ax² + bx + c)</button>
     </div>
 
-    <div id="game-play" class="hidden">
-        <div id="score-display">スコア: 0</div>
-        <div id="timer-bar-container"><div id="timer-bar"></div></div>
-        <div id="question"></div>
-        <div class="choices-grid">
-            <button class="choice-btn" onclick="checkAnswer(0)"></button>
-            <button class="choice-btn" onclick="checkAnswer(1)"></button>
-            <button class="choice-btn" onclick="checkAnswer(2)"></button>
-            <button class="choice-btn" onclick="checkAnswer(3)"></button>
-        </div>
-    </div>
-
-    <div id="result-screen" class="hidden">
-        <h2 id="result-msg">GAME OVER</h2>
-        <p id="final-score" style="font-size: 1.5rem;"></p>
-        <button class="start-btn" onclick="startGame()">リトライ</button>
+    <div id="game" class="hidden">
+        <div id="formula"></div>
+        <div id="options"></div>
+        <div id="score-board">スコア: <span id="score">0</span></div>
+        <button class="btn" style="background:#95a5a6;" onclick="backToMenu()">メニューに戻る</button>
     </div>
 </div>
 
 <script>
+    /* JavaScript: ロジック部分 */
     let score = 0;
-    let timeLeft = 100;
-    let timerInterval;
-    let correctAnswerIndex = 0;
+    let currentAnswer = "";
 
-    function startGame() {
+    function startGame(level) {
+        document.getElementById('menu').classList.add('hidden');
+        document.getElementById('game').classList.remove('hidden');
         score = 0;
-        document.getElementById('start-screen').classList.add('hidden');
-        document.getElementById('result-screen').classList.add('hidden');
-        document.getElementById('game-play').classList.remove('hidden');
-        nextQuestion();
+        updateScore();
+        nextQuestion(level);
     }
 
-    function generateQuestion() {
-        const isFactorize = Math.random() > 0.5;
-        const a = Math.floor(Math.random() * 6) + 1;
-        const b = Math.floor(Math.random() * 6) + 1;
+    function backToMenu() {
+        document.getElementById('menu').classList.remove('hidden');
+        document.getElementById('game').classList.add('hidden');
+    }
+
+    function updateScore() {
+        document.getElementById('score').innerText = score;
+    }
+
+    function nextQuestion(level) {
+        let questionData = generateQuestion(level);
+        document.getElementById('formula').innerText = questionData.display;
         
-        const sum = a + b;
-        const prod = a * b;
+        const optionsDiv = document.getElementById('options');
+        optionsDiv.innerHTML = ""; // 以前のボタンを消去
 
-        let questionText = "";
-        let choices = [];
-        let correctStr = "";
+        // 正解とダミーの選択肢を混ぜる
+        let choices = [questionData.answer, ...questionData.dummies];
+        choices.sort(() => Math.random() - 0.5);
 
-        if (isFactorize) {
-            // 因数分解 (x² + 5x + 6)
-            questionText = `x² + ${sum}x + ${prod}`;
-            correctStr = `(x + ${a})(x + ${b})`;
-            choices = [
-                correctStr,
-                `(x - ${a})(x - ${b})`,
-                `(x + ${sum})(x + ${prod})`,
-                `(x + ${a+1})(x + ${b})`
-            ];
-        } else {
-            // 展開 ((x+2)(x+3))
-            questionText = `(x + ${a})(x + ${b})`;
-            correctStr = `x² + ${sum}x + ${prod}`;
-            choices = [
-                correctStr,
-                `x² - ${sum}x + ${prod}`,
-                `x² + ${sum}x - ${prod}`,
-                `x² + ${Math.abs(a-b)}x + ${prod}`
-            ];
-        }
-
-        // 選択肢をシャッフル
-        for (let i = choices.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [choices[i], choices[j]] = [choices[j], choices[i]];
-        }
-
-        document.getElementById('question').innerHTML = questionText; // innerHTMLに変更
-        correctAnswerIndex = choices.indexOf(correctStr);
-        const buttons = document.querySelectorAll('.choice-btn');
-        buttons.forEach((btn, idx) => {
-            btn.innerHTML = choices[idx]; // innerHTMLに変更
+        choices.forEach(choice => {
+            let btn = document.createElement('button');
+            btn.className = "btn";
+            btn.innerText = choice;
+            btn.onclick = () => checkAnswer(choice, questionData.answer, level);
+            optionsDiv.appendChild(btn);
         });
     }
 
-    function nextQuestion() {
-        document.getElementById('score-display').innerText = `スコア: ${score}`;
-        generateQuestion();
-        startTimer();
-    }
-
-    function startTimer() {
-        clearInterval(timerInterval);
-        timeLeft = 100;
-        const bar = document.getElementById('timer-bar');
-        
-        timerInterval = setInterval(() => {
-            timeLeft -= 1;
-            bar.style.width = timeLeft + "%";
-            if (timeLeft <= 0) {
-                gameOver("タイムアップ！");
-            }
-        }, 100);
-    }
-
-    function checkAnswer(index) {
-        if (index === correctAnswerIndex) {
-            score++;
-            nextQuestion();
+    function generateQuestion(level) {
+        let a, b, c, d;
+        if (level === 1) {
+            // (x + a)(x + b)
+            a = Math.floor(Math.random() * 9) + 1;
+            b = Math.floor(Math.random() * 9) + 1;
+            return {
+                display: `x² + ${a + b}x + ${a * b}`,
+                answer: `(x + ${a})(x + ${b})`,
+                dummies: [`(x + ${a+1})(x + ${b-1})`, `(x - ${a})(x - ${b})`, `(x + ${a*b})(x + 1)`]
+            };
         } else {
-            gameOver("不正解！");
+            // (ax + b)(cx + d) たすき掛け
+            a = Math.floor(Math.random() * 2) + 2; // 2 or 3
+            c = Math.floor(Math.random() * 2) + 1; // 1 or 2
+            b = Math.floor(Math.random() * 4) + 1;
+            d = Math.floor(Math.random() * 4) + 1;
+            let x2 = a * c;
+            let x = a * d + b * c;
+            let con = b * d;
+            return {
+                display: `${x2}x² + ${x}x + ${con}`,
+                answer: `(${a}x + ${b})(${c}x + ${d})`,
+                dummies: [`(${a}x + ${d})(${c}x + ${b})`, `(${a*c}x + 1)(x + ${con})`, `(${a}x - ${b})(${c}x - ${d})`]
+            };
         }
     }
 
-    function gameOver(msg) {
-        clearInterval(timerInterval);
-        document.getElementById('game-play').classList.add('hidden');
-        document.getElementById('result-screen').classList.remove('hidden');
-        document.getElementById('result-msg').innerText = msg;
-        document.getElementById('final-score').innerText = `最終スコア: ${score}`;
+    function checkAnswer(selected, correct, level) {
+        if (selected === correct) {
+            score += 10;
+            alert("正解！");
+        } else {
+            alert("残念！正解は " + correct);
+        }
+        updateScore();
+        nextQuestion(level);
     }
 </script>
 
